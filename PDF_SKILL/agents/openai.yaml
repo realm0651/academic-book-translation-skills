@@ -1,0 +1,4 @@
+interface:
+  display_name: Academic Book PDF
+  short_description: Build polished PDFs from translated academic books
+  default_prompt: Build and verify the final PDF from the completed master Markdown.

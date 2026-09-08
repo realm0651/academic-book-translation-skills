@@ -1,0 +1,173 @@
+% Generic Chinese book PDF typography and layout.
+% XeLaTeX + ctexbook + TeX Live Fandol fixed OpenType fonts.
+% Fandol avoids Windows variable-font / xdvipdfmx compatibility problems.
+
+\usepackage{fontspec}
+\usepackage{xeCJK}
+\defaultfontfeatures{Ligatures=TeX,Scale=MatchLowercase}
+
+\usepackage[
+  inner=22mm,
+  outer=18mm,
+  top=21mm,
+  bottom=24mm,
+  headheight=14pt,
+  headsep=7mm,
+  footskip=11mm
+]{geometry}
+
+\usepackage{setspace}
+\AtBeginDocument{\fontsize{10.5pt}{15.7pt}\selectfont}
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0pt}
+\frenchspacing
+\raggedbottom
+\widowpenalty=9000
+\clubpenalty=9000
+\displaywidowpenalty=9000
+\emergencystretch=2em
+\tolerance=1200
+
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{longtable,booktabs,array,calc}
+
+% Pandoc 3.7/3.8+ compatibility for captionless longtables.
+\makeatletter
+\@ifundefined{c@none}{\newcounter{none}}{}
+\makeatother
+
+\usepackage{etoolbox}
+\usepackage{enumitem}
+\usepackage{needspace}
+\usepackage{titlesec}
+\usepackage{indentfirst}
+\usepackage{fancyhdr}
+\usepackage{microtype}
+\usepackage{xurl}
+\usepackage[unicode=true,hidelinks]{hyperref}
+\usepackage{bookmark}
+\usepackage{caption}
+\usepackage{newunicodechar}
+
+% Common Unicode superscripts seen in academic tables.
+\newunicodechar{ᵃ}{\textsuperscript{a}}
+\newunicodechar{ᵇ}{\textsuperscript{b}}
+\newunicodechar{ᶜ}{\textsuperscript{c}}
+\newunicodechar{ᵈ}{\textsuperscript{d}}
+\newunicodechar{ᵉ}{\textsuperscript{e}}
+
+% Pandoc helpers.
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\providecommand{\real}[1]{#1}
+\providecommand{\pandocbounded}[1]{#1}
+\providecommand{\passthrough}[1]{#1}
+
+% Images: never crop; fit within the B5 text block.
+\setkeys{Gin}{width=\linewidth,height=0.78\textheight,keepaspectratio}
+\captionsetup{font=small,labelfont=bf,skip=6pt}
+
+% Tables: compact, multi-page friendly.
+\AtBeginEnvironment{longtable}{%
+  \fontsize{8.7pt}{11.2pt}\selectfont
+  \setlength{\tabcolsep}{3.8pt}%
+  \renewcommand{\arraystretch}{1.12}%
+}
+\setlength{\LTpre}{0.7\baselineskip}
+\setlength{\LTpost}{0.9\baselineskip}
+
+% Book-style block quotations.
+\renewenvironment{quote}
+  {\list{}{%
+     \leftmargin=1.5em
+     \rightmargin=1.5em
+     \topsep=.55\baselineskip
+     \parsep=.25\baselineskip
+   }\item\relax\small}
+  {\endlist}
+
+% Heading hierarchy. Headings are unnumbered by LaTeX; write chapter numbers
+% directly in Markdown if desired (for example, "# 第一章 ...").
+\titleformat{\chapter}[display]
+  {\sffamily\bfseries\centering}
+  {}
+  {0pt}
+  {\fontsize{18pt}{25pt}\selectfont}
+\titlespacing*{\chapter}{0pt}{18mm}{8mm}
+
+\titleformat{\section}
+  {\sffamily\bfseries\fontsize{14.5pt}{20pt}\selectfont}
+  {}
+  {0pt}
+  {}
+\titlespacing*{\section}{0pt}{1.2\baselineskip}{0.45\baselineskip}
+
+\titleformat{\subsection}
+  {\sffamily\bfseries\fontsize{12pt}{17pt}\selectfont}
+  {}
+  {0pt}
+  {}
+\titlespacing*{\subsection}{0pt}{0.95\baselineskip}{0.35\baselineskip}
+
+\titleformat{\subsubsection}
+  {\sffamily\bfseries\fontsize{10.8pt}{15pt}\selectfont}
+  {}
+  {0pt}
+  {}
+\titlespacing*{\subsubsection}{0pt}{0.8\baselineskip}{0.25\baselineskip}
+
+\pretocmd{\section}{\Needspace{4\baselineskip}}{}{}
+\pretocmd{\subsection}{\Needspace{3.5\baselineskip}}{}{}
+\pretocmd{\subsubsection}{\Needspace{3\baselineskip}}{}{}
+
+\setcounter{secnumdepth}{-2}
+
+% Running heads and page numbers.
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[CE]{\small\bookshorttitle}
+\fancyhead[CO]{\small\nouppercase{\leftmark}}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.35pt}
+\renewcommand{\footrulewidth}{0pt}
+\renewcommand{\chaptermark}[1]{\markboth{#1}{}}
+
+\fancypagestyle{plain}{%
+  \fancyhf{}
+  \fancyfoot[C]{\small\thepage}
+  \renewcommand{\headrulewidth}{0pt}
+  \renewcommand{\footrulewidth}{0pt}
+}
+
+% Blank verso pages inserted by openright should really be blank.
+\makeatletter
+\def\cleardoublepage{\clearpage\if@twoside\ifodd\c@page\else
+  \hbox{}\thispagestyle{empty}\newpage
+  \if@twocolumn\hbox{}\newpage\fi\fi\fi}
+\makeatother
+
+% Bidirectional endnote navigation. The Lua filter creates a unique target at
+% every正文 note marker and appends these compact backlinks to the matching
+% endnote entry. A repeated source note receives numbered return links.
+% Robust正文 note marker; safe inside headings/bookmarks as well as normal text.
+\DeclareRobustCommand{\booknoteref}[3]{%
+  \hypertarget{#1}{}\hyperlink{#2}{\textsuperscript{#3}}%
+}
+\pdfstringdefDisableCommands{%
+  \def\booknoteref#1#2#3{}%
+}
+\newcommand{\booknotebacklink}[1]{%
+  \nobreak\hspace{0.38em}%
+  \hyperlink{#1}{\raisebox{0.15ex}{\scriptsize\ensuremath{\hookleftarrow}}}%
+}
+\newcommand{\booknotebacklinkmulti}[2]{%
+  \nobreak\hspace{0.32em}%
+  \hyperlink{#1}{\raisebox{0.15ex}{\scriptsize\ensuremath{\hookleftarrow}\!#2}}%
+}
+
+% Endnotes are placed at the back, grouped by top-level H1 chapter.
+\newenvironment{bookendnotelist}
+  {\begingroup\fontsize{9pt}{12.2pt}\selectfont
+   \setlist[enumerate]{leftmargin=2.6em,labelsep=.65em,itemsep=.45\baselineskip,topsep=.35\baselineskip,parsep=0pt}}
+  {\endgroup}

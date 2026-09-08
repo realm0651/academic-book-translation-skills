@@ -1,0 +1,4 @@
+interface:
+  display_name: Academic Book EPUB
+  short_description: Build polished EPUBs from translated academic books
+  default_prompt: Build and verify the final EPUB from the completed master Markdown.

@@ -1,0 +1,83 @@
+\documentclass[UTF8,b5paper,twoside,openright,zihao=5,fontset=fandol]{ctexbook}
+
+$if(short-title)$
+\newcommand{\bookshorttitle}{$short-title$}
+$else$
+\newcommand{\bookshorttitle}{$title$}
+$endif$
+
+\input{$preamble-path$}
+
+$if(toc-title)$
+\renewcommand{\contentsname}{$toc-title$}
+$endif$
+
+$if(toc-depth)$
+\setcounter{tocdepth}{$toc-depth$}
+$else$
+\setcounter{tocdepth}{1}
+$endif$
+
+\hypersetup{
+  pdftitle={$title$},
+  pdfauthor={$for(author)$$author$$sep$; $endfor$}
+}
+
+\begin{document}
+\frontmatter
+
+$if(title)$
+\begin{titlepage}
+\thispagestyle{empty}
+\begin{center}
+\vspace*{0.18\textheight}
+{\sffamily\bfseries\fontsize{25pt}{35pt}\selectfont $title$\par}
+$if(subtitle)$
+\vspace{1.2em}
+{\sffamily\fontsize{14pt}{20pt}\selectfont $subtitle$\par}
+$endif$
+\vspace{2.2em}
+{\fontsize{12pt}{18pt}\selectfont $for(author)$$author$$sep$\\[0.4em]$endfor$\par}
+\vfill
+$if(edition-note)$
+{\small $edition-note$\par}
+$endif$
+\end{center}
+\end{titlepage}
+\cleardoublepage
+$endif$
+
+$if(book-info)$
+\thispagestyle{empty}
+\vspace*{0.12\textheight}
+\begin{flushleft}
+{\small
+\setlength{\parindent}{0pt}
+$for(book-info)$
+\textbf{$book-info.label$：} $book-info.value$\\[0.65em]
+$endfor$
+}
+\end{flushleft}
+\vfill
+$if(copyright-page-note)$
+{\small $copyright-page-note$\par}
+$endif$
+\cleardoublepage
+$endif$
+
+$if(dedication)$
+\thispagestyle{empty}
+\vspace*{0.36\textheight}
+\begin{center}
+{\itshape $dedication$\par}
+\end{center}
+\cleardoublepage
+$endif$
+
+\pagestyle{fancy}
+\tableofcontents
+\cleardoublepage
+
+$body$
+
+\end{document}

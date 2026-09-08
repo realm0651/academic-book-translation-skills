@@ -1,0 +1,5 @@
+interface:
+  display_name: Social Science Book Translation
+  short_description: Translate and assemble long English academic books
+  default_prompt: Translate this academic book using the complete scholarly translation
+    workflow.

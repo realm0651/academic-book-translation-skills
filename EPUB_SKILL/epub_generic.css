@@ -1,0 +1,412 @@
+/*
+ * 通用中文长篇 EPUB 样式
+ * 适用：中文翻译的社会科学、历史、政治、哲学等长篇非虚构著作
+ *
+ * 设计原则：
+ * 1. 尊重阅读器的字体与字号设置，不嵌入字体；
+ * 2. 普通中文正文首行缩进 2em；
+ * 3. 图表、脚注、引文兼顾手机等小屏幕；
+ * 4. 不依赖具体书名、章节名称或 Pandoc 自动生成的中文 id；
+ * 5. 可选使用 .part / .chapter / .appendix 等语义类增强分页与层级。
+ */
+
+/* ---------- 全局 ---------- */
+
+html {
+  line-height: 1.75;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family:
+    "Noto Serif CJK SC",
+    "Source Han Serif SC",
+    "Songti SC",
+    "STSong",
+    "SimSun",
+    serif;
+  line-height: 1.75;
+  text-align: justify;
+  word-break: normal;
+  overflow-wrap: break-word;
+  widows: 2;
+  orphans: 2;
+  margin: 0 5%;
+}
+
+/* 普通正文：中文书籍采用首行缩进 */
+p {
+  margin: 0 0 0.65em 0;
+  text-indent: 2em;
+}
+
+/* ---------- 书名页 ---------- */
+
+h1.title {
+  font-size: 2em;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.45;
+  margin: 18% 0 1.2em 0;
+  padding: 0;
+}
+
+p.subtitle,
+p.author,
+p.date {
+  text-align: center;
+  text-indent: 0;
+  margin: 0.8em 0;
+}
+
+/* ---------- 标题层级 ---------- */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family:
+    "Noto Serif CJK SC",
+    "Source Han Serif SC",
+    "Songti SC",
+    "STSong",
+    "SimSun",
+    serif;
+  font-weight: 700;
+  line-height: 1.45;
+  text-align: left;
+  page-break-after: avoid;
+  break-after: avoid;
+}
+
+h1 {
+  font-size: 1.7em;
+  text-align: center;
+  margin: 2.4em 0 1.6em 0;
+}
+
+h2 {
+  font-size: 1.4em;
+  margin: 2em 0 1em 0;
+}
+
+h3 {
+  font-size: 1.18em;
+  margin: 1.6em 0 0.8em 0;
+}
+
+h4 {
+  font-size: 1.06em;
+  margin: 1.35em 0 0.65em 0;
+}
+
+h5,
+h6 {
+  font-size: 1em;
+  margin: 1.15em 0 0.55em 0;
+}
+
+/*
+ * 可选语义类。
+ * Pandoc Markdown 示例：
+ *   # 第一部分 {.part}
+ *   ## 第一章　标题 {.chapter}
+ *   ## 附录一　标题 {.appendix}
+ *
+ * 不加这些类也能正常阅读；加类后可获得更明确的分隔页/章首页效果。
+ */
+.part {
+  font-size: 1.9em;
+  text-align: center;
+  margin-top: 24%;
+  margin-bottom: 2em;
+  page-break-before: always;
+  break-before: page;
+}
+
+.chapter,
+.appendix {
+  font-size: 1.62em;
+  text-align: center;
+  margin: 2.4em 0 1.6em 0;
+  page-break-before: always;
+  break-before: page;
+}
+
+/* H1 默认作为全书较高层级结构，尽量从新页开始 */
+h1:not(.title) {
+  page-break-before: always;
+  break-before: page;
+}
+
+/* 标题后的中文正文仍保持首行缩进 */
+h1 + p,
+h2 + p,
+h3 + p,
+h4 + p,
+h5 + p,
+h6 + p {
+  text-indent: 2em;
+}
+
+/* ---------- EPUB 导航 / 目录 ---------- */
+
+nav#toc,
+nav#TOC,
+nav[role="doc-toc"] {
+  line-height: 1.6;
+}
+
+nav#toc p,
+nav#TOC p,
+nav[role="doc-toc"] p,
+nav#toc li,
+nav#TOC li,
+nav[role="doc-toc"] li {
+  text-indent: 0;
+}
+
+nav#toc ol,
+nav#toc ul,
+nav#TOC ol,
+nav#TOC ul,
+nav[role="doc-toc"] ol,
+nav[role="doc-toc"] ul {
+  padding-left: 1.5em;
+}
+
+/* ---------- 引文 ---------- */
+
+blockquote {
+  margin: 1.1em 1.4em;
+  padding: 0 0 0 1em;
+  border-left: 0.18em solid currentColor;
+  font-size: 0.96em;
+  line-height: 1.7;
+}
+
+blockquote p {
+  text-indent: 0;
+  margin: 0.45em 0;
+}
+
+/* ---------- 强调、链接与代码 ---------- */
+
+em {
+  font-style: italic;
+}
+
+strong {
+  font-weight: 700;
+}
+
+a {
+  text-decoration: none;
+}
+
+code,
+pre {
+  font-family: monospace;
+}
+
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+/* ---------- 图片与图题 ---------- */
+
+figure {
+  margin: 1.5em auto;
+  text-align: center;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+  max-height: 85vh;
+  height: auto;
+  margin: 0.5em auto;
+}
+
+figcaption {
+  margin: 0.6em auto 0;
+  max-width: 92%;
+  font-size: 0.9em;
+  line-height: 1.55;
+  text-align: center;
+  text-indent: 0;
+}
+
+/* 部分 Markdown 会把图题或图片说明输出为普通段落 */
+figure + p,
+img + p {
+  text-indent: 0;
+}
+
+/* ---------- 表格 ---------- */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.2em auto 1.5em auto;
+  font-size: 0.88em;
+  line-height: 1.5;
+  page-break-inside: auto;
+}
+
+thead {
+  font-weight: 700;
+}
+
+th,
+td {
+  border: 1px solid currentColor;
+  padding: 0.42em 0.5em;
+  vertical-align: top;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+th {
+  text-align: center;
+}
+
+caption {
+  margin: 0 0 0.6em 0;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* 表格中的段落不要首行缩进 */
+table p,
+th p,
+td p {
+  text-indent: 0;
+  margin: 0;
+}
+
+/* 常见的独立表题 / 图题 */
+p > strong:only-child {
+  line-height: 1.5;
+}
+
+/* ---------- 列表 ---------- */
+
+ul,
+ol {
+  margin: 0.8em 0 1em 1.4em;
+  padding-left: 1.2em;
+}
+
+li {
+  margin: 0.25em 0;
+}
+
+li > p {
+  text-indent: 0;
+  margin: 0.25em 0;
+}
+
+/* ---------- 脚注 ---------- */
+
+a.footnote-ref {
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+a.footnote-ref sup {
+  font-size: 0.75em;
+  line-height: 0;
+}
+
+section.footnotes,
+div.footnotes,
+.footnotes-end-of-document {
+  margin-top: 2.2em;
+  padding-top: 0.8em;
+  border-top: 1px solid currentColor;
+  font-size: 0.88em;
+  line-height: 1.55;
+}
+
+section.footnotes ol,
+div.footnotes ol,
+.footnotes-end-of-document ol {
+  padding-left: 1.7em;
+}
+
+section.footnotes li,
+div.footnotes li,
+.footnotes-end-of-document li,
+[role="doc-footnote"] {
+  margin: 0.55em 0;
+}
+
+section.footnotes p,
+div.footnotes p,
+.footnotes-end-of-document p,
+[role="doc-footnote"] p {
+  text-indent: 0;
+  margin: 0.2em 0;
+}
+
+a.footnote-back,
+a[role="doc-backlink"] {
+  text-decoration: none;
+  margin-left: 0.25em;
+}
+
+/* ---------- 表注 / 图片说明等 ---------- */
+
+p > em:only-child {
+  font-size: 0.92em;
+  line-height: 1.55;
+}
+
+/* ---------- 分隔与分页 ---------- */
+
+hr {
+  border: 0;
+  border-top: 1px solid currentColor;
+  margin: 1.6em 20%;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+figure {
+  page-break-after: avoid;
+  break-after: avoid;
+}
+
+/* ---------- 小屏兼容 ---------- */
+
+@media screen and (max-width: 480px) {
+  body {
+    margin-left: 3%;
+    margin-right: 3%;
+  }
+
+  blockquote {
+    margin-left: 0.6em;
+    margin-right: 0.4em;
+  }
+
+  table {
+    font-size: 0.82em;
+  }
+
+  th,
+  td {
+    padding: 0.35em 0.38em;
+  }
+}
