@@ -4,7 +4,11 @@
 
 A modular set of ChatGPT skills for translating long-form English academic books into structured Chinese Markdown and publishing the completed translation as EPUB3 and PDF.
 
+Read USAGE.md to acknowledge how to 
+
 一套面向英文长篇学术著作翻译与数字出版的 ChatGPT Skills，覆盖从原始英文 PDF、全书结构分析、术语管理和逐部分翻译，到最终 Markdown 母稿、EPUB3 与 PDF 出版的完整工作流。
+
+For usage instructions, see `USAGE.md`
 
 ---
 
@@ -12,7 +16,7 @@ A modular set of ChatGPT skills for translating long-form English academic books
 
 ### 项目简介
 
-本项目是一套用于长篇英文学术著作中译的模块化 ChatGPT Skills，主要面向社会科学、历史学、政治学、哲学、政治经济学、人类学、劳动研究、性别研究及相关领域。
+本项目是一套用于长篇英文学术著作中译的模块化 ChatGPT Skills.
 
 整个流程被拆分为三个相互独立但能够衔接的 Skill：
 
