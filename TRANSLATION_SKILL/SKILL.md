@@ -5,8 +5,9 @@ description: >
   political economy, anthropology, labour studies, gender studies, and related academic books into
   structured Chinese Markdown. Use when the source is one full PDF with either a reliable native
   text layer or a usable OCR text layer, and the task requires whole-book structure analysis,
-  note-system classification, glossary management, Part-by-Part faithful translation, OCR-aware
-  correction when needed, footnote/completeness QA, and final Markdown assembly. Do not use for
+  note-system classification, resumable book_plan workflow state, glossary management, Part-by-Part
+  faithful translation, OCR-aware correction when needed, cross-session continuation,
+  footnote/completeness QA, and final Markdown assembly. Do not use for
   image-only PDFs without a usable text layer, whole-book OCR, EPUB production, or PDF
   typesetting.
 ---
@@ -241,16 +242,26 @@ After whole-book inspection and before systematic translation, create:
 book_plan.md
 ```
 
-`book_plan.md` is a persistent operational file for this book. It replaces the need to create derivative Part PDFs merely to remember boundaries.
+`book_plan.md` is the persistent operational file and **canonical workflow-state source** for this book. It replaces both chat-memory dependence and the need to create derivative Part PDFs merely to remember boundaries. Its state must be sufficient to resume the book in a fresh conversation/session.
 
-At the start of every later translation step, read:
+State authority is intentionally separated:
+
+- `book_plan.md` = canonical **workflow / structure / progress state**;
+- `glossary.md` = canonical **terminology / fixed-rendering / first-use state**;
+- the original full PDF = canonical **source text**;
+- an applicable book-specific profile, when recorded, = canonical **book-specific override layer**.
+
+Chat history is useful context but is never required for recovery when these files are available. Do not create a second state file such as `translation_state.md`.
+
+At the start of every later translation step, including after a session change, read:
 
 1. `TRANSLATION_SKILL/SKILL.md` for general rules;
-2. this book's current `book_plan.md` for book-specific structure and state;
-3. the newest `glossary.md` for fixed translations;
-4. the original full PDF for the actual source text.
+2. this book's current `book_plan.md` for book-specific structure and authoritative workflow state;
+3. the newest `glossary.md` for fixed translations and first-use state;
+4. any book-specific profile named in `book_plan.md`, if applicable;
+5. the original full PDF for the actual source text.
 
-Do not rely only on chat memory when `book_plan.md` is available.
+Do not rely on chat memory to determine progress when `book_plan.md` is available. If chat history and `book_plan.md` disagree, prefer the current files unless the user explicitly corrects them.
 
 ## 5.1 Required content of `book_plan.md`
 
@@ -267,6 +278,8 @@ A useful plan should contain at least:
 - Text handling: direct extraction / extraction + semantic/OCR correction
 - Total physical PDF pages: xxx
 - Notes type: Case A / Case B
+- Book-specific profile: none / `ProfileName.md`
+- Latest glossary: `glossary.md` v1.0
 
 ## 2. Translation scope
 
@@ -324,11 +337,18 @@ Do not translate by default:
 ## 8. Current state
 
 - Initialization: done
-- Latest glossary: v1.0
+- Translation stage: in progress
+- Latest glossary: `glossary.md` v1.0
 - Completed: none
 - Next action: translate Part 1
 
-## 9. Unresolved items
+## 9. File / asset state
+
+- Original PDF: available
+- Completed Part Markdown: none
+- Assets: none
+
+## 10. Unresolved items
 
 - ...
 ```
@@ -344,8 +364,9 @@ At minimum update:
 - the completed Part's status;
 - its actual output filename;
 - the glossary version used / produced;
-- any new book-specific convention discovered;
+- any new book-specific convention discovered or applicable profile reference;
 - unresolved source problems, if any;
+- concise file / asset availability state when it matters for continuation;
 - `Current state` and `Next action`.
 
 Use concise statuses such as:
@@ -357,7 +378,9 @@ done
 blocked
 ```
 
-Do not turn `book_plan.md` into a verbose diary or simulated Git log. It is an operational state file.
+Do not turn `book_plan.md` into a verbose diary or simulated Git log. It is an operational state file. A completed Part is authoritative only when its status in `book_plan.md` is `done`; the mere existence of a Markdown file is not enough to mark it complete. Conversely, do not mark a Part `done` until its translation and required QA have actually succeeded.
+
+Treat the updated `book_plan.md` + updated `glossary.md` + newly completed Part Markdown as a **checkpoint** after every Part. This checkpoint is what makes fresh-session recovery possible.
 
 ---
 
@@ -1117,25 +1140,53 @@ Only after QA succeeds should `book_plan.md` move the Part to `done` and point t
 
 ---
 
-# 24. Persistent state and the meaning of “continue”
+# 24. Persistent state, fresh-session recovery, and the meaning of “continue”
 
-Within the same book translation conversation/workspace, if the user says only:
+The workflow must be recoverable across conversation/session boundaries. For an already initialized book, the combination of:
+
+```text
+original PDF
++ current book_plan.md
++ current glossary.md
++ applicable book-specific profile, if any
++ this Skill
+```
+
+should be sufficient to continue with the same structural and translation requirements without loading all previous translated Parts or relying on previous chat history.
+
+## 24.1 Entry-mode detection
+
+At the beginning of work on a book, determine the mode from files before asking the user to restate anything:
+
+- **No usable `book_plan.md` for this source** → New Book Initialization.
+- **Usable `book_plan.md` exists** → Resume Existing Book.
+
+Do not repeat whole-book initialization merely because the conversation is new. When resuming, verify that `BOOK_STEM`, source PDF identity, PDF type, Part ranges, and current glossary are coherent, then proceed from the recorded state.
+
+## 24.2 Fixed meaning of “继续”
+
+If the user says only:
 
 ```text
 继续
 ```
 
-interpret it as:
+interpret it, in the same session **or a fresh session**, as:
 
-> Execute the next incomplete stage recorded in `book_plan.md`.
+> Execute the next incomplete stage recorded in the current `book_plan.md`.
 
 Before acting:
 
-1. read `book_plan.md`;
-2. read the newest `glossary.md`;
-3. confirm the original PDF is still accessible;
-4. find the first required stage whose status is not `done`;
-5. execute that stage without asking the user to restate page ranges, filename conventions, footnote rules, or glossary rules already recorded.
+1. read `TRANSLATION_SKILL/SKILL.md`;
+2. read the current `book_plan.md`;
+3. read the newest `glossary.md`;
+4. read any book-specific profile named in `book_plan.md`;
+5. confirm the original PDF is accessible;
+6. locate `Next action` and cross-check it against Part / appendix / Notes statuses;
+7. execute the first required stage whose authoritative status is not `done`;
+8. do not ask the user to restate page ranges, filenames, footnote rules, glossary rules, prior Parts, or output format already recorded.
+
+If `Next action` is stale but the status table unambiguously shows the next incomplete stage, repair `Next action` and continue. If state is genuinely contradictory and cannot be resolved from the files, ask only about the specific contradiction.
 
 Typical progression:
 
@@ -1150,7 +1201,7 @@ Initialization
 → translation complete / ready for final assembly
 ```
 
-After each stage, update `book_plan.md` and give only a concise status message in chat.
+After every completed stage, update `book_plan.md`; update `glossary.md` only when needed; then give a concise chat status.
 
 Example:
 
@@ -1158,27 +1209,39 @@ Example:
 Part 3 已完成
 输出：<BOOK_STEM>_part3_中译.md
 Glossary：v1.2 → v1.3
+Book plan：已更新
 下一步：Part 4
 ```
 
 Do not create long progress reports unless requested.
 
+## 24.3 Previous translated Parts are not routine resume dependencies
+
+Do not require all completed Part Markdown files merely to translate the next Part. Normal continuity should come from `book_plan.md`, `glossary.md`, the original PDF, and any book profile.
+
+Read an earlier translated Part only when the current source explicitly refers back to wording, a coined expression, a previously translated quotation, or another detail that cannot be resolved reliably from the glossary / plan alone. This is targeted back-reference checking, not routine reloading of the entire translated history.
+
 ---
 
-# 25. File continuity and re-upload policy
+# 25. File continuity, session changes, and re-upload policy
 
-The workflow assumes one persistent cloud/workspace context whenever available.
+Use any files that remain accessible, regardless of whether the user is in the same conversation or a new one. A session change by itself is never a reason to restart initialization.
 
 During initialization and Part translation:
 
-- continue using the original full PDF already present in the workspace;
-- continue using the same `book_plan.md`;
-- continue using the newest `glossary.md`;
-- continue using previously generated translated Markdown and `assets/` when accessible;
-- do not require the user to upload a new source file for every Part;
-- do not ask for derivative Part PDFs that the workflow no longer creates.
+- continue using the original full PDF when available;
+- treat the current `book_plan.md` as the workflow-state authority;
+- treat the current `glossary.md` as the terminology-state authority;
+- read the book-specific profile recorded in `book_plan.md`, if any;
+- use previously generated translated Markdown and `assets/` when helpful and accessible, but do not make them routine prerequisites for translating the next Part;
+- do not require a new source upload for every Part;
+- do not ask for derivative Part PDFs that the standard workflow does not require.
 
-If a needed file is truly unavailable, identify the **specific missing file**. Prefer asking for the original PDF, current `book_plan.md`, newest `glossary.md`, or the exact missing translated file rather than asking the user to “upload everything again.”
+If the original full PDF is available but an old derivative Part PDF is missing, read the current Part directly from the physical-page range in `book_plan.md`. If a legacy project was physically split and the current Part PDF is available, it may be used; if it is missing, reconstruct only the current required range from the original PDF rather than asking for every old Part file.
+
+If a needed file is truly unavailable, identify the **specific missing file** and why it is needed. Prefer asking for only the original PDF, current `book_plan.md`, current `glossary.md`, required book profile, or exact back-reference file. Never ask the user to “upload everything again” during ordinary Part translation.
+
+At the final assembly boundary, the rule is different: all final Part Markdown / appendix / Notes files and all required assets must be available together, because assembly operates on the completed translated artifacts rather than reconstructing them from workflow state.
 
 ---
 
@@ -1384,7 +1447,7 @@ A concise initialization status is enough:
 
 ```text
 当前状态：初始化完成
-已完成：全书结构分析 / book_plan.md / glossary v1.0
+已完成：全书结构分析 / book_plan.md（可跨 session 恢复） / glossary v1.0
 下一步：翻译 Part 1
 ```
 
