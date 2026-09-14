@@ -1,23 +1,10 @@
-\documentclass[UTF8,b5paper,twoside,openright,zihao=5,fontset=fandol]{ctexbook}
+\documentclass[UTF8,b5paper,twoside,$if(openright)$openright$else$openany$endif$,zihao=5,fontset=fandol]{ctexbook}
 
-$if(short-title)$
 \newcommand{\bookshorttitle}{$short-title$}
-$else$
-\newcommand{\bookshorttitle}{$title$}
-$endif$
-
 \input{$preamble-path$}
+$if(openright)$\bookopenrighttrue$else$\bookopenrightfalse$endif$
 
-$if(toc-title)$
-\renewcommand{\contentsname}{$toc-title$}
-$endif$
-
-$if(toc-depth)$
-\setcounter{tocdepth}{$toc-depth$}
-$else$
-\setcounter{tocdepth}{1}
-$endif$
-
+$if(toc-title)$\renewcommand{\contentsname}{$toc-title$}$else$\renewcommand{\contentsname}{目录}$endif$
 \hypersetup{
   pdftitle={$title$},
   pdfauthor={$for(author)$$author$$sep$; $endfor$}
@@ -28,55 +15,22 @@ $endif$
 
 $if(title)$
 \begin{titlepage}
-\thispagestyle{empty}
-\begin{center}
-\vspace*{0.18\textheight}
-{\sffamily\bfseries\fontsize{25pt}{35pt}\selectfont $title$\par}
-$if(subtitle)$
-\vspace{1.2em}
-{\sffamily\fontsize{14pt}{20pt}\selectfont $subtitle$\par}
-$endif$
-\vspace{2.2em}
-{\fontsize{12pt}{18pt}\selectfont $for(author)$$author$$sep$\\[0.4em]$endfor$\par}
-\vfill
-$if(edition-note)$
-{\small $edition-note$\par}
-$endif$
-\end{center}
+  \thispagestyle{bookempty}
+  \begin{center}
+    \vspace*{0.17\textheight}
+    {\sffamily\bfseries\fontsize{24pt}{34pt}\selectfont $title$\par}
+    $if(author)$
+    \vspace{2.4em}
+    {\fontsize{12pt}{18pt}\selectfont $for(author)$$author$$sep$\\[0.4em]$endfor$\par}
+    $endif$
+    \vfill
+    $if(edition-note)${\small $edition-note$\par}$endif$
+  \end{center}
 \end{titlepage}
-\cleardoublepage
-$endif$
-
-$if(book-info)$
-\thispagestyle{empty}
-\vspace*{0.12\textheight}
-\begin{flushleft}
-{\small
-\setlength{\parindent}{0pt}
-$for(book-info)$
-\textbf{$book-info.label$：} $book-info.value$\\[0.65em]
-$endfor$
-}
-\end{flushleft}
-\vfill
-$if(copyright-page-note)$
-{\small $copyright-page-note$\par}
-$endif$
-\cleardoublepage
-$endif$
-
-$if(dedication)$
-\thispagestyle{empty}
-\vspace*{0.36\textheight}
-\begin{center}
-{\itshape $dedication$\par}
-\end{center}
-\cleardoublepage
 $endif$
 
 \pagestyle{fancy}
-\tableofcontents
-\cleardoublepage
+\markboth{\bookshorttitle}{\bookshorttitle}
 
 $body$
 

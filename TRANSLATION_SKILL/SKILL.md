@@ -31,7 +31,8 @@ This skill handles the workflow from one original English **PDF with a usable te
 8. rolling glossary updates;
 9. Part-level structural and completeness QA;
 10. persistent workflow-state updates in `book_plan.md`;
-11. final whole-book Markdown assembly with a unified endnotes chapter.
+11. final whole-book Markdown assembly with a unified endnotes chapter;
+12. downstream handoff preflight so the final `master.md` is structurally valid for Pandoc-based publishing without creating a second persistent正文 source.
 
 Do not perform EPUB generation or PDF typesetting unless the user explicitly asks for those tasks or another skill handles them.
 
@@ -48,6 +49,12 @@ Use it for footnote QA instead of reimplementing the same structural checks ad h
 At initialization, derive one stable `BOOK_STEM` for the book. By default it is the original PDF filename without the `.pdf` extension; apply only minimal filename-safe cleanup when necessary, record the chosen value in `book_plan.md`, and do not change it later. The literal word `book` is never a fixed output prefix: source `book.pdf` yields `book_part1_中译.md`, while another source uses that book's own `BOOK_STEM`. Use `BOOK_STEM` for book-specific translated Part files, appendix/Notes working files, and the final master. Keep the generic workspace names `book_plan.md`, `glossary.md`, and `assets/` unchanged.
 
 The previous workflow that created `<BOOK_STEM>_part1.pdf`, `<BOOK_STEM>_part2.pdf`, `<BOOK_STEM>_notes.pdf`, and similar derivative PDFs is **not the default workflow anymore**. Logical Parts are translation units recorded in `book_plan.md`; they are not source files that must be generated in advance.
+
+## Master-source invariant
+
+After whole-book assembly, `<BOOK_STEM>_master.md` is the **only persistent正文 source** handed to EPUB/PDF publishing. Do not create or maintain a second edited正文 source such as `_build_master.md`, `_build_master_fixed.md`, `normalized_master.md`, or similar. Downstream publishing tools may generate temporary normalized Markdown, intermediate TeX, or other build files, but those files are disposable derivatives and must be regenerated from `master.md` on every build. They must never become the next workflow input, the authoritative正文, or a second state source.
+
+If a downstream EPUB/PDF tool needs build-specific normalization, fix the publishing pipeline or create a temporary derivative in its build directory; do not silently rewrite the persistent `master.md` merely to satisfy a renderer.
 
 ---
 
@@ -1425,7 +1432,32 @@ Run:
 python scripts/check_footnotes.py --strict-ids <BOOK_STEM>_master.md
 ```
 
-as a final structural check.
+as a final footnote check.
+
+Also run the Pandoc handoff preflight shipped with this skill:
+
+```bash
+python scripts/check_master_structure.py <BOOK_STEM>_master.md
+```
+
+This check is intended to catch a class of failures that ordinary Markdown inspection can miss: a line may visually begin with `#` or `##` but fail to become a Pandoc `Header` because of malformed block boundaries, especially after concatenation or immediately after lists / footnote definitions.
+
+## 27.10 Pandoc AST handoff preflight
+
+Before declaring whole-book Markdown assembly complete, verify the final master as a publishing input, not merely as plain text.
+
+Required checks:
+
+1. **Header recognition.** Every raw ATX `#` and `##` heading in the final master must be recognized by Pandoc at the same level. In particular, Part / Chapter / Preface / Introduction / Appendix / Notes headings that are intended as top-level units must be real AST headers, not literal `#` text inside another block.
+2. **Block boundaries.** Ensure structurally significant headings are separated from the preceding paragraph, list, table, image caption, or footnote-definition block by valid Markdown boundaries. Adding or removing a blank line for syntactic validity is allowed; changing heading wording is not.
+3. **Top-level sequence.** Compare the actual H1 sequence in the master with the authoritative original-unit order in `book_plan.md`. Missing, duplicated, reordered, or unexpectedly demoted top-level units are assembly errors and must be corrected before publishing.
+4. **Images.** Every local image reference used by the master must resolve relative to the master / project directory. Do not rewrite valid `assets/...` paths into build-specific absolute paths.
+5. **Notes chapter.** When the workflow requires unified endnotes, `# 注释` must be recognized exactly once as a real top-level header. Its internal `##` origin headings must remain second-level headers; their presence does not imply that they must later appear in the PDF/EPUB table of contents.
+6. **No publishing mutation.** Do not introduce book-layout decisions here. TOC depth, PDF bookmarks, page numbering, running heads, formula scaling, image sizing, table sizing, and other typesetting behavior belong to the EPUB/PDF skills. Translation assembly only guarantees a structurally valid master.
+
+If `check_master_structure.py` fails because assembly introduced malformed Markdown boundaries, make the smallest syntactic correction in `master.md` and rerun both structure and footnote QA. If the master is structurally valid but a PDF/EPUB build still misinterprets it, leave the master unchanged and fix the downstream publishing tool.
+
+The assembly stage is complete only after both footnote QA and the Pandoc handoff preflight pass.
 
 ---
 
@@ -1472,8 +1504,10 @@ When the user asks to integrate all completed translations:
 6. preserve every footnote ID and definition body unchanged;
 7. preserve existing `assets/...` paths;
 8. create `<BOOK_STEM>_master.md` unless the user specifies another filename;
-9. run final footnote and structural QA;
-10. deliver the assembled master and keep source Part files unchanged.
+9. run final footnote QA and `scripts/check_master_structure.py`;
+10. compare the final H1 sequence against `book_plan.md` and verify all local asset paths;
+11. treat the resulting `master.md` as the only persistent正文 source for downstream EPUB/PDF builds;
+12. deliver the assembled master and keep source Part files unchanged.
 
 Never claim a PDF, Markdown file, glossary, plan, or other artifact exists unless it was actually created successfully.
 
@@ -1511,7 +1545,9 @@ original book.pdf
 → move all [^id]: definitions to final # 注释
    └─ group under ## 序言 / ## 导论 / ## 第一章 / ... / ## 附录
 → <BOOK_STEM>_master.md
-→ final footnote + structure QA
+→ final footnote QA
+→ Pandoc AST / asset handoff preflight
+→ hand off master.md as the only persistent正文 source
 ```
 
 ## Case B
@@ -1542,7 +1578,9 @@ original book.pdf
 → move all Part-end [^id]: definitions to final # 注释
    └─ group under ## 序言 / ## 导论 / ## 第一章 / ... / ## 附录
 → <BOOK_STEM>_master.md
-→ final footnote + structure QA
+→ final footnote QA
+→ Pandoc AST / asset handoff preflight
+→ hand off master.md as the only persistent正文 source
 ```
 
 The key invariant is:

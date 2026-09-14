@@ -1,249 +1,360 @@
 ---
 name: academic-book-pdf
-description: >
-  Build and verify a polished B5 Chinese academic-book PDF from a completed book-specific master
-  Markdown file produced by the translation workflow. Use when translation and final Markdown
-  assembly are finished and the user wants a PDF, with optional assets. Perform structural
-  preflight, adjust only necessary book-specific build settings, reuse the bundled TeX and Lua
-  resources, run the build, verify typography and endnote links, and deliver it without
-  retranslating or substantially editing the book.
+description: Build and verify a polished B5 Chinese academic-book PDF from the final master Markdown produced by the translation workflow. Treat master.md as the only authoritative body source; normalize only in a temporary build directory; infer and validate book structure before typesetting; generate a restrained TOC/bookmark hierarchy, correct Roman-to-Arabic page labels, readable tables, non-upscaled images, native-size mathematics with shrink-only overflow handling, and bidirectional book-end notes; then run structural, typography, link, font, log, and rendered-page QA before delivery.
 ---
 
 # Academic Book PDF
 
-## Scope
+## Scope and authority
 
-Use this skill after the translation/assembly stage is complete. The expected master Markdown normally contains peer-level H1 units such as:
+Use this skill only after translation and whole-book Markdown assembly are complete. The authoritative input is the final book-specific `<BOOK_STEM>_master.md` produced by the Translation Skill. It is the **only正文 source of truth** for PDF generation.
 
-```text
-# 目录                     (optional source-side printed TOC)
-# 序言 / # 编者前言 / ...
-# 第一章 ...
-# 第二章 ...
-...
-# 附录                     (optional)
-# 注释
-## 序言
-[^pr-001]: ...
-## 第三章
-[^ch03-001]: ...
-## 附录
-[^ap-001]: ...
-```
+Never promote a temporary file such as `_build_master.md`, `_build_master_fixed.md`, `normalized_master.md`, `book_annotated.md`, generated TeX, or a debugging copy into a second正文 source. Every build starts again from the authoritative master. Temporary normalization exists only inside an ephemeral build directory and must not survive as workflow state.
 
-Images and image-based complex tables normally live in `assets/` and are referenced using relative Markdown paths.
+Do not retranslate, rewrite, polish, summarize, silently correct, or reorder正文 in the PDF stage. Do not change stable footnote IDs, formulas, numbers, tables, quotations, glossary decisions, or image content merely to satisfy typesetting. If a genuine source/content error is discovered, report it separately; do not silently repair it in the PDF build.
 
-The assembled master is book-specific: use the stable `BOOK_STEM` established by the translation workflow, normally `<BOOK_STEM>_master.md`. The literal `book` is only the stem for a source actually named `book.pdf`; do not reuse it as a fixed prefix across different books.
-
-This skill is for **PDF typesetting only**. The integrated Markdown master is authoritative. In normal cases the book should not need textual editing before building.
-
-Supporting files shipped with this skill:
+Bundled files:
 
 ```text
 build_pdf.py
-template.tex
+book_filter.lua
 preamble.tex
-endnotes.lua
+template.tex
 ```
 
-The build script may generate a temporary annotated Markdown copy inside `PDF_SKILL/build/`. This copy exists only so named Markdown footnote IDs survive the Pandoc conversion long enough to build reciprocal PDF links. The authoritative book-specific master Markdown is never modified.
+`build_pdf.py` performs normalization, Pandoc AST preflight, structure inference, build, and automated QA. `book_filter.lua` turns the inferred H1 structure into explicit Part/Chapter/front-matter/Notes LaTeX commands and builds reciprocal endnote links. The TeX files provide the generic B5 layout.
 
 ## 1. Normal workflow
 
-When the user provides an assembled master Markdown and requests a PDF:
+When the user asks to generate the PDF:
 
-1. locate the final master Markdown and `assets/` if present;
-2. confirm that the file has already been assembled and is not merely one translation Part;
-3. modify only the small `USER SETTINGS` block near the top of `build_pdf.py`;
-4. run `build_pdf.py` from the book project directory;
-5. inspect the generated PDF and build log if necessary;
-6. deliver the final `.pdf`.
+1. Read this Skill.
+2. Locate the final `<BOOK_STEM>_master.md` and `assets/` if present.
+3. Confirm the file is the assembled master, not an individual Part and not a prior temporary build input.
+4. Inspect the master structure before compiling. Do not assume Pandoc will interpret raw Markdown correctly merely because `#` characters are visible in the source.
+5. Adjust only necessary book-specific settings near the top of `build_pdf.py`, or use CLI overrides.
+6. Run `build_pdf.py`.
+7. Require the automated QA to pass.
+8. Render representative pages and visually inspect them. Automated compilation success is not publication QA.
+9. Only after both structural and visual QA pass, deliver the final PDF.
 
-For a correctly assembled book, running the script should normally be sufficient.
+If the build fails, fix the narrowest build defect. Do not rewrite正文 as a workaround.
 
-## 2. Parameters GPT normally changes
+## 2. Book-specific settings
 
-Edit only these values unless a real layout problem requires more:
+Normally edit only the `USER SETTINGS` block in `build_pdf.py`:
 
 ```python
 INPUT_MD = "<BOOK_STEM>_master.md"
-OUTPUT_PDF = ""
+OUTPUT_PDF = ""          # blank -> input stem + .pdf
 
 TITLE = "中文书名"
-SHORT_TITLE = ""
-AUTHORS = ["Author Name"]
+SHORT_TITLE = "短书名"
+AUTHORS = ["作者"]
 LANG = "zh-CN"
 EDITION_NOTE = "中文翻译稿"
 
 TOC_TITLE = "目录"
-TOC_DEPTH = 1
 NOTES_TITLE = "注释"
-MAINMATTER_START = ""
+SOURCE_TOC_TITLES = ("目录", "原书目录")
+MAINMATTER_START = ""     # exact H1 only when auto-detection is unsuitable
+SUPPRESS_FIRST_H1 = True  # assembled master normally begins with book-title H1
+TOC_EXCLUDE_H1 = ()       # exact H1 titles to render but omit from TOC/bookmarks
+OPENRIGHT = False         # digital-reading default
 ASSETS_DIR = "assets"
+MAX_OVERFULL_PT = 8.0
 ```
 
-`OUTPUT_PDF = ""` means use the Markdown stem plus `.pdf`.
+`OPENRIGHT = False` is the default because the project primarily produces digital-reading PDFs and should not create avoidable blank verso pages. Set it to `True` only when the user explicitly wants print-style right-hand Part/Chapter openings.
 
-`SHORT_TITLE = ""` means use `TITLE` in the running head.
-
-`MAINMATTER_START = ""` is normally correct. The Lua filter automatically inserts `\mainmatter` at the first numbered chapter such as `第一章 ...`. Set an exact H1 only for an unusual book whose main matter cannot be auto-detected.
-
-CLI overrides are available, for example:
+CLI overrides may be used, for example:
 
 ```text
-python PDF_SKILL/build_pdf.py --input <BOOK_STEM>_master.md --title "书名" --author "Author"
+python PDF_SKILL/build_pdf.py \
+  --input <BOOK_STEM>_master.md \
+  --output <BOOK_STEM>.pdf \
+  --title "中文书名" \
+  --short-title "短书名" \
+  --author "作者"
 ```
 
-The top-of-file USER SETTINGS remain the preferred GPT-facing interface.
+Repeat `--author` for multiple authors.
 
-## 3. Source Markdown assumptions
+## 3. Master Markdown preflight: mandatory
 
-Do not modify content merely to satisfy the PDF template.
+Before typesetting, the build must perform a temporary normalization and then inspect the Pandoc AST.
 
-In particular, do not:
+### 3.1 Temporary normalization
 
-- retranslate or polish正文;
-- change quotations, dates, statistics, tables, or examples;
-- renumber stable Markdown footnote IDs;
-- change glossary decisions;
-- move notes again unless the master is actually malformed;
-- alter image paths except to repair a real broken path.
+The authoritative master is never edited. A temporary `normalized_master.md` may be created only inside the build directory to:
 
-The PDF build understands the assembled source structure. It omits a source-side `# 目录` / `# 原书目录` because the LaTeX template generates a real PDF table of contents. It also omits the already assembled source `# 注释` shell and rebuilds the final Notes chapter from Pandoc native footnotes.
+- normalize CRLF/LF and remove a UTF-8 BOM;
+- ensure every ATX heading has a legal block boundary before and after it;
+- prevent `# 第一章 ...` or similar headings from being swallowed into a preceding list item or paragraph;
+- annotate named footnote references so their source IDs survive Pandoc and can be used for reciprocal note links;
+- remove duplicate automatic figure captions only when an image already has a separate immediately following `图...` / `表...` caption paragraph;
+- perform narrowly defined transcription-level repairs to known control-character corruption when the visible intended TeX token is unambiguous.
 
-Before Pandoc runs, `build_pdf.py` creates a temporary Markdown copy and inserts invisible annotation spans immediately before named正文 footnote references. This preserves the source footnote identity that Pandoc would otherwise discard. `endnotes.lua` uses that identity to create stable note destinations and exact return destinations without changing visible正文 or the master Markdown. If a heading itself carries a note marker, the generated LaTeX is normalized to use the plain heading as its short title, so the marker is not copied into the TOC or running marks and cannot create duplicate PDF destinations.
+Normalization must not modify visible正文 wording, mathematical meaning, note IDs, table data, image paths, or section order.
 
-Visible endnote numbering restarts within each H1 source unit. A heading such as `# 第三章 劳动过程` is grouped under `## 第三章`; appendix notes are grouped under `## 附录`. If one source footnote is cited more than once within the same H1 unit, it is emitted once in the Notes chapter and receives multiple numbered return links.
+### 3.2 AST validation
 
-## 4. Default PDF design
+Do not trust line-based Markdown inspection alone. Run Pandoc to JSON and verify that all intended H1 units are genuine AST `Header` nodes.
 
-The included template is intentionally generic and already tuned for Chinese long-form academic books:
+The build infers a structural manifest from the H1 sequence:
 
-- B5 paper;
-- two-sided book layout;
-- right-hand chapter openings;
-- generated title page;
-- generated table of contents;
-- Chinese正文 with 2em first-line indent;
-- book-style chapter/section hierarchy with deliberately moderate white space around headings, so chapter and section openings remain clear without consuming an excessive fraction of the page;
-- centered running heads and centered page numbers on both odd and even pages; the even-page short title and odd-page chapter title may differ, but both occupy the centered header position;
-- multi-page Markdown tables via Pandoc/LaTeX;
-- images constrained to the text block without cropping;
-- compact front-matter and正文 lists: redundant Markdown hard breaks at the end of list items are removed in the temporary generated LaTeX, preventing illustration/table directories from acquiring an extra blank baseline after every entry;
-- book-end Notes grouped by top-level source unit;
-- bidirectional note navigation: each正文 note marker links to its endnote and every endnote has an exact backlink to the正文 citation;
-- repeated references to one source note receive multiple compact return links (`↩1`, `↩2`, etc.) rather than duplicate endnote entries.
+- first source title H1: normally suppressed as a duplicate of the generated title page;
+- source `# 目录` / `# 原书目录`: used only as a placement marker, with its printed source contents skipped;
+- front-matter H1s before main matter: top-level front units;
+- `第X部分` / `Part X`: Part units;
+- `第X章` / `Chapter N`: Chapter units;
+- `附录` / `Appendix`: top-level back/main units;
+- `# 注释`: source Notes shell, skipped and rebuilt from native notes.
 
-There is normally no reason to redesign these settings for each book.
+The first Part or Chapter H1 is normally the main-matter start. If this cannot be detected safely, the build must stop and require `MAINMATTER_START` rather than guess.
 
-Only modify `preamble.tex`, `template.tex`, or `endnotes.lua` after observing a specific reproducible defect that cannot be solved by the USER SETTINGS.
+Unknown H1s must **never be silently discarded**. After main matter starts, an unclassified H1 is preserved as a top-level unit and reported as a QA warning so the structure can be reviewed.
 
-## 5. Tables and images
+The same inferred manifest must drive both rendering and QA. Do not hard-code a specific book's chapter count, Part count, titles, or outline into the generic Skill scripts.
 
-Markdown tables should remain Markdown tables. Pandoc converts them into LaTeX tables/longtables.
+## 4. TOC and PDF bookmarks
 
-Do not convert a readable Markdown table into an image just to make PDF generation easier.
+The PDF should contain one generated TOC only. If the master contains a source-side `# 目录` / `# 原书目录`, keep it in the master but skip its printed entries during PDF generation.
 
-Images should use relative source paths such as:
+Default hierarchy:
+
+- front-matter H1: TOC/bookmark level 1;
+- Chapter before any Part: level 1;
+- Part: level 1;
+- Chapter within a Part: level 2;
+- Appendix: level 1 unless the book-specific structure clearly requires otherwise;
+- Notes: level 1;
+- H2/H3/H4正文 headings: visible in the book but **not** in the main TOC or PDF bookmarks.
+
+Do not solve TOC problems merely by changing `tocdepth`. The book-level hierarchy must be explicit and validated against the inferred structural manifest.
+
+Front-matter minor headings such as `编者`, `出版信息`, acknowledgments subheads, methodological subheads, chapter internal sections, and Notes group headings should not leak into the main TOC/bookmarks unless explicitly requested.
+
+## 5. Page numbering and page labels
+
+Page numbering is a publication invariant, not a cosmetic detail.
+
+Front matter uses lowercase Roman numerals. The title page may hide the printed number while still belonging to front matter.
+
+At the exact main-matter start, issue a real `\mainmatter` so the visible page number resets to Arabic `1`. Part/Chapter/Appendix/Notes after this point continue in one Arabic sequence and do not reset again.
+
+The PDF must also contain logical page labels (`pdfpagelabels`) so readers such as Acrobat and Preview display `iii`, `iv`, `1`, `2`, `3` rather than only physical page indices.
+
+Automated QA must verify:
+
+- front matter has lowercase-Roman labels;
+- the inferred main-matter opening has logical label `1`;
+- a printed footer `1` is visible on that opening page unless the book-specific design intentionally suppresses it;
+- Arabic labels remain continuous through the last page.
+
+A build that compiles but leaves the entire book in Roman numerals is a failed build.
+
+## 6. Typography defaults
+
+The bundled design is a restrained B5 Chinese academic-book layout:
+
+- B5: 176 × 250 mm;
+- two-sided text block;
+- inner margin about 22 mm, outer about 18 mm, top about 21 mm, bottom about 24 mm;
+-正文 about 10.7 pt with approximately 15.5 pt leading;
+- 2em first-line indent;
+- moderate Chapter opening space rather than half-page blank bands;
+- H2/H3/H4 sized clearly but conservatively;
+- odd-page running head: current Chapter/unit title;
+- even-page running head: short book title;
+- centered footer page number;
+- Chapter/Part opening pages suppress running heads.
+
+Do not insert manual page-specific `\vspace` patches unless there is a reproducible local defect. Prefer semantic macros and stable layout parameters.
+
+## 7. Mathematics: native size, shrink only
+
+This is a hard rule learned from formula-heavy political-economy books.
+
+**Never globally resize every display equation to a target width. Never use a transformation that can enlarge short equations.** A short equation such as `m^* = ρ/ν` must remain at normal display-math size.
+
+The bundled pipeline wraps ordinary display equations in `\bookfitmath`, which:
+
+1. typesets the equation at the book's normal display size;
+2. measures its natural width;
+3. leaves it unchanged if it fits;
+4. shrinks it only if its natural width exceeds the configured fraction of the text block.
+
+Long aligned equations may be reduced locally. Short equations must never be expanded to fill the line.
+
+Tagged display equations may require a narrow temporary TeX normalization so `\tag{...}` remains valid. Preserve the formula and tag exactly.
+
+After build, inspect formula-heavy representative pages. Log cleanliness alone cannot prove acceptable mathematical typography.
+
+## 8. Images and captions
+
+Images must never be cropped by the PDF build.
+
+Ordinary figures should remain at natural size when they already fit. The build may shrink an oversized figure to fit the text block and page height, but it must not automatically enlarge a small raster image to `\linewidth`.
+
+Image-based tables follow the same principle: fit down when necessary, never upscale merely to fill the line.
+
+If the master contains both:
 
 ```markdown
-![图 3.1](assets/fig_03_01.png)
+![图1](assets/x.png)
+
+*图1*
 ```
 
-`build_pdf.py` includes the project directory and `assets/` in Pandoc's resource path.
+or another separate caption paragraph immediately after the image, suppress Pandoc's automatic image-alt caption in the temporary input so the final PDF shows the caption once. Do not produce `图 1: 图 1`, `Figure 1: 图 1`, or duplicate captions.
 
-If a source asset is missing, report it rather than fabricating an image.
+All image targets discovered in the Pandoc AST must exist. Remote images are not acceptable for an offline final-book build. Missing assets block the build.
 
-## 6. Build dependencies
+If a supplied source PNG/JPEG is already cropped, blurred, or missing edge content, the build script cannot reconstruct absent pixels. Report that as an asset problem; do not conceal it by further cropping.
 
-The standard build requires:
+## 9. Tables
+
+Readable Markdown tables should remain tables. Do not convert them into images merely because PDF layout is difficult.
+
+Do not shrink **all** tables to a tiny global size just to make the widest table fit. The default table size should remain reasonably close to正文. If one or two tables are too wide, fix those tables locally through column spacing, local font reduction, landscape handling if explicitly approved, or another targeted solution.
+
+Long tables may span pages. Wide tables must not be clipped beyond the text block. Table data and numeric values are immutable during typesetting.
+
+Inspect at least one ordinary table and one dense/wide table in rendered output when the book contains tables.
+
+## 10. Notes and reciprocal navigation
+
+The Translation Skill assembles the source notes at the end of `master.md`; the PDF build converts正文 native Markdown notes into a book-end Notes chapter grouped by source H1 unit.
+
+Requirements:
+
+- one visible Notes entry per unique source note within its group;
+-正文 note marker links to the correct Notes entry;
+- each Notes entry has an exact backlink to the正文 citation point;
+- repeated references to one source note produce multiple compact return links rather than duplicate Notes entries;
+- Notes group headings remain visible but do not enter the main TOC/bookmarks;
+- no duplicate PDF destination IDs;
+- no orphan note definitions or references without definitions.
+
+The master note IDs are stable workflow data and must not be renumbered in the source.
+
+## 11. Build dependencies and portability
+
+Standard dependencies:
 
 ```text
 Python 3
+PyMuPDF (import name: fitz)
 Pandoc
 XeLaTeX
 xdvipdfmx
 ```
 
-Typical TeX installations provide XeLaTeX and xdvipdfmx. The template uses `ctexbook` and TeX Live's Fandol fonts to avoid dependence on a particular Windows system font.
+Use `ctexbook` and TeX Live fonts such as Fandol as the reliable fallback. Do not package or redistribute font files.
 
-No PowerShell script and no hand-edited YAML are required. `build_pdf.py` generates temporary metadata automatically from its USER SETTINGS.
-
-## 7. Build pipeline
-
-`build_pdf.py` runs:
+Pandoc's LaTeX image syntax changes between releases. The build must tolerate at least:
 
 ```text
-<BOOK_STEM>_master.md
-        ↓
-temporary invisible footnote-reference annotation
-        ↓
-Pandoc + endnotes.lua + generated metadata + template.tex
-        ↓
-book.tex
-        ↓
-XeLaTeX pass 1
-XeLaTeX pass 2
-XeLaTeX pass 3
-        ↓
-book.xdv
-        ↓
-xdvipdfmx
-        ↓
-Book.pdf
+\includegraphics{...}
+\includegraphics[...]{...}
+\pandocbounded{\includegraphics[...]{...}}
 ```
 
-Three XeLaTeX passes are retained so the generated table of contents, page references, and book structure settle reliably.
+Do not make the final build depend on one exact Pandoc minor version without an explicit reason.
 
-Temporary build files are kept under `PDF_SKILL/build/` and are recreated on each run.
+If a PowerShell launcher is supplied for Windows, save it as UTF-8 with BOM or keep it ASCII-only so Windows PowerShell 5.1 does not misparse non-ASCII strings. The Skill itself does not require PowerShell; `build_pdf.py` remains the canonical entry point.
 
-## 8. QA
+## 12. Automated QA: required before publication
 
-After building, verify at minimum:
+A successful XeLaTeX exit code is only the beginning. `build_pdf.py` must fail or warn on the following conditions.
 
-- the final PDF exists and is non-empty;
-- title and author are correct;
-- title page is present;
-- generated TOC is present and not duplicated by the source-side printed TOC;
--前置部分 and main numbered chapters have sensible pagination;
-- chapter starts and page numbers look normal;
-- on representative odd and even正文 pages, both the running head and page number are horizontally centered rather than alternating between outer margins;
-- tables do not obviously overflow;
-- front-matter directories such as `插图目录` do not show artificial blank-line spacing between entries and do not consume avoidable pages;
-- chapter and section headings have clear but restrained vertical spacing, without the large empty bands produced by overly generous title spacing;
-- images are present and not cropped;
-- `注释` appears at the book end when the book has notes;
-- note group headings correspond to source units such as `序言`, `第三章`, `附录`;
-- each正文 note marker links to the matching endnote;
-- each generated endnote has at least one backlink and that backlink returns to the exact正文 citation point, not merely to a chapter or page;
-- if a source footnote is cited multiple times, every citation gets its own return target and the endnote shows the corresponding multiple return links;
-- no duplicate PDF destination IDs are produced.
+### 12.1 Source/structure QA
 
-When link inspection is available, test representative full round trips: `正文注释号 → 书末注释 → ↩ → 原正文位置`, including at least one note near the beginning, middle, and end of the book. If repeated-note references exist, test every return link on at least one repeated note.
+- authoritative master hash changes during the build;
+- missing/duplicate/orphan footnotes;
+- intended H1s are not recognized by Pandoc;
+- main matter cannot be safely detected;
+- source TOC is duplicated in visible output;
+- a structural H1 is silently lost;
+- generated outline differs from the inferred manifest.
 
-If the environment supports rendering/visual inspection, inspect representative pages including the title page, TOC,正文, a dense table/image page, and Notes. The return-link symbol must remain unobtrusive and must not cause obvious line overflow or broken glyphs. If visual inspection is unavailable, perform structural QA and say so.
+### 12.2 PDF QA
 
-## 9. Failure handling
+Verify:
 
-If Pandoc fails, inspect its message.
+- PDF exists and has pages;
+- outline hierarchy exactly matches the inferred structural manifest;
+- ordinary H2/H3/H4 do not leak into the main outline;
+- Roman-to-Arabic page-label transition is correct;
+- no visible Markdown `#` structural markers leak into PDF text;
+- all referenced images appear;
+- no duplicate caption patterns;
+- all fonts are embedded;
+- no fatal LaTeX errors;
+- no missing-glyph warnings;
+- no duplicate PDF destinations;
+- overfull boxes remain below the configured tolerance or are explicitly investigated;
+- note forward links, note anchors, and backlinks match the source note counts;
+- internal destinations are valid.
 
-If XeLaTeX fails, `build_pdf.py` prints a useful excerpt from `PDF_SKILL/build/book.log`. Fix the narrowest relevant issue.
+The QA report must include the source SHA-256 so a report from an older/different master cannot be mistaken for proof that the current source built successfully.
 
-Common problems include:
+## 13. Visual QA: mandatory
 
-- wrong `INPUT_MD`;
-- missing `assets/...` image;
-- malformed Markdown table;
-- unsupported Unicode character in a table;
-- missing TeX package;
-- a book structure that genuinely differs from the Translation Skill convention.
+After automated QA passes, render representative pages to images and inspect them. This is not optional for a final publishing build.
 
-Do not use a build error as a reason to rewrite正文.
+At minimum inspect:
 
-## 10. Deliverable
+- title page;
+- TOC first page and last page if multi-page;
+- one front-matter page;
+- main-matter opening page (`1`);
+- one Part page if Parts exist;
+- at least one Chapter opening;
+- a formula-heavy page;
+- a dense table page if tables exist;
+- a figure + caption page if figures exist;
+- a later-book Chapter opening;
+- Notes first page if notes exist;
+- final PDF page.
 
-The primary PDF deliverable is the final `.pdf` file.
+Check for:
 
-When this PDF build is the final publishing stage of the translation project and the EPUB plus `zlibrary_metadata.md` have also been completed, additionally create `<BOOK_STEM>_final.zip` for convenient download. Include exactly the final `<BOOK_STEM>_master.md`, EPUB, PDF, `glossary.md`, `zlibrary_metadata.md`, and `assets/` when present. Exclude temporary build files, logs, intermediate Part files, and `book_plan.md` unless the user explicitly asks for them. Provide the ZIP link in the final response; individual file links may also be provided.
+- clipped or overlapping text;
+- black boxes or missing glyphs;
+- absurdly oversized or undersized formulas;
+- tables with unreadably small type;
+- image upscaling, cropping, or caption duplication;
+- excessive chapter-title whitespace;
+- isolated headings with poor page breaks;
+- incorrect running heads;
+- incorrect page numbers;
+- avoidable nearly blank pages.
 
-Do not deliver `book.tex`, `.aux`, `.toc`, `.xdv`, generated metadata, or logs unless the user asks for debugging materials.
+If a defect is visible, revise the generic template or make the narrowest book-specific change, rebuild from `master.md`, and repeat QA. Never declare completion solely because `qa_report.txt` says PASS.
+
+## 14. Failure handling
+
+When a build fails:
+
+1. identify the exact stage: source QA, AST, Pandoc, Lua, TeX, XDV/PDF conversion, structural QA, note-link QA, or visual QA;
+2. preserve the authoritative master unchanged;
+3. if diagnosis requires intermediates, rerun with `--keep-temp` and inspect the temporary normalized Markdown / TeX / logs;
+4. fix the narrowest generic-script or book-specific configuration problem;
+5. rerun the full build from the authoritative master.
+
+Do not patch a previously generated `book.tex` and treat it as the next build source. Do not reuse a stale `normalized_master.md` from a prior build.
+
+## 15. Deliverables
+
+Primary deliverables for the PDF stage:
+
+```text
+<BOOK_STEM>.pdf
+qa_report.txt
+```
+
+Do not normally deliver temporary normalized Markdown, generated TeX, `.aux`, `.log`, `.toc`, `.xdv`, rendered PNGs, or debugging files.
+
+When the whole publishing workflow is complete and `zlibrary_metadata.md` has also been generated, create `<BOOK_STEM>_final.zip` according to the project instruction. Include only the final master, final PDF, EPUB if applicable, glossary, metadata, and `assets/` if present; exclude Part working files, build intermediates, and `book_plan.md` unless the user explicitly requests them.
