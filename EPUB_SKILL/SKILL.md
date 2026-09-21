@@ -51,7 +51,8 @@ When the user provides an assembled Markdown book and asks for EPUB:
 3. make only the small book-specific changes in the `USER SETTINGS` block at the top of `build_epub.py`;
 4. run `build_epub.py` from the book project directory;
 5. inspect the build result structurally;
-6. deliver the generated `.epub`.
+6. verify that the delivered basename contains no spaces or literal `%20`;
+7. deliver the generated `.epub`.
 
 In normal cases, no other source modification is required.
 
@@ -74,7 +75,7 @@ ASSETS_DIR = "assets"
 COVER_IMAGE = ""
 ```
 
-`OUTPUT_EPUB = ""` means the script uses the Markdown filename stem and adds `.epub`.
+`OUTPUT_EPUB = ""` means the script derives the output basename from the finalized Chinese `TITLE`, normalizes spaces / `%20` / unsafe punctuation to underscores, and adds `.epub`. Example: `抵抗行动：反抗市场暴政` → `抵抗行动_反抗市场暴政.epub`. If no title is supplied, it falls back to a normalized input stem.
 
 Because the Translation Skill treats Contents, Preface, main chapters, appendices, and Notes as peer-level H1 units, `SPLIT_LEVEL = 1` is normally correct. Do not change it merely for stylistic preference.
 
@@ -185,6 +186,6 @@ Typical fixes are limited to:
 
 ## 9. Deliverable
 
-The primary deliverable is the final `.epub` file.
+The primary deliverable is the final `.epub` file, normally named from the finalized Chinese title rather than `<BOOK_STEM>_中译.epub`.
 
-Do not deliver temporary metadata or `.epub_build/` files unless the user asks for debugging materials.
+When the project workflow requests both EPUB and PDF, do not treat EPUB completion as a separate conversational stopping point: continue in the same publishing turn through PDF build/QA, `zlibrary_metadata.md`, and final ZIP packaging. Do not deliver temporary metadata or `.epub_build/` files unless the user asks for debugging materials.

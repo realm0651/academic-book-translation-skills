@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -25,7 +26,7 @@ from pathlib import Path
 # Paths are relative to the directory from which this script is run
 # (normally the book project directory containing book_master.md/assets/).
 INPUT_MD = "book_master.md"
-OUTPUT_EPUB = ""  # blank -> same stem as INPUT_MD with .epub
+OUTPUT_EPUB = ""  # blank -> filename-safe Chinese TITLE + .epub; fallback to input stem
 
 TITLE = ""        # recommended: Chinese book title
 AUTHORS = []       # e.g. ["P. K. Edwards"]
@@ -45,6 +46,17 @@ COVER_IMAGE = ""  # optional, e.g. "assets/cover.jpg"
 SKILL_DIR = Path(__file__).resolve().parent
 CSS_FILE = SKILL_DIR / "epub_generic.css"
 LUA_FILTER = SKILL_DIR / "epub_endnotes.lua"
+
+
+UNSAFE_FILENAME_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]+')
+
+def safe_filename_stem(value: str) -> str:
+    """Normalize a user-facing filename stem; never emit spaces or literal %20."""
+    value = value.replace("%20", " ").replace("：", "_").replace(":", "_")
+    value = re.sub(r"\s+", "_", value.strip())
+    value = UNSAFE_FILENAME_RE.sub("_", value)
+    value = re.sub(r"_+", "_", value).strip("._ ")
+    return value or "book"
 
 
 def q(value: str) -> str:
@@ -103,7 +115,8 @@ def build(args: argparse.Namespace) -> Path:
     if not input_md.exists():
         raise FileNotFoundError(f"Input Markdown not found: {input_md}")
 
-    output = Path(args.output) if args.output else Path(input_md.stem + ".epub")
+    title = args.title or TITLE or input_md.stem.removesuffix("_master")
+    output = Path(args.output) if args.output else Path(safe_filename_stem(title) + ".epub")
     if not output.is_absolute():
         output = (project_dir / output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -113,7 +126,6 @@ def build(args: argparse.Namespace) -> Path:
         if not f.exists():
             raise FileNotFoundError(f"Missing skill file: {f}")
 
-    title = args.title or TITLE or input_md.stem
     authors = args.author if args.author else list(AUTHORS)
 
     build_dir = project_dir / ".epub_build"

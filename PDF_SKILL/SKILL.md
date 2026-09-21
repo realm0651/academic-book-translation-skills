@@ -46,7 +46,7 @@ Normally edit only the `USER SETTINGS` block in `build_pdf.py`:
 
 ```python
 INPUT_MD = "<BOOK_STEM>_master.md"
-OUTPUT_PDF = ""          # blank -> input stem + .pdf
+OUTPUT_PDF = ""          # blank -> filename-safe Chinese TITLE + .pdf; fallback to input stem
 
 TITLE = "中文书名"
 SHORT_TITLE = "短书名"
@@ -58,7 +58,7 @@ TOC_TITLE = "目录"
 NOTES_TITLE = "注释"
 SOURCE_TOC_TITLES = ("目录", "原书目录")
 MAINMATTER_START = ""     # exact H1 only when auto-detection is unsuitable
-SUPPRESS_FIRST_H1 = True  # assembled master normally begins with book-title H1
+SUPPRESS_FIRST_H1 = True  # suppress first H1 only when it matches the configured book title
 TOC_EXCLUDE_H1 = ()       # exact H1 titles to render but omit from TOC/bookmarks
 OPENRIGHT = False         # digital-reading default
 ASSETS_DIR = "assets"
@@ -78,7 +78,7 @@ python PDF_SKILL/build_pdf.py \
   --author "作者"
 ```
 
-Repeat `--author` for multiple authors.
+Repeat `--author` for multiple authors. With blank `OUTPUT_PDF`, a finalized title such as `抵抗行动：反抗市场暴政` produces `抵抗行动_反抗市场暴政.pdf`; spaces, literal `%20`, and unsafe filename punctuation are normalized to underscores.
 
 ## 3. Master Markdown preflight: mandatory
 
@@ -135,6 +135,8 @@ Do not solve TOC problems merely by changing `tocdepth`. The book-level hierarch
 
 Front-matter minor headings such as `编者`, `出版信息`, acknowledgments subheads, methodological subheads, chapter internal sections, and Notes group headings should not leak into the main TOC/bookmarks unless explicitly requested.
 
+The generated TOC is an active navigation surface, not merely printed text. Default TOC type should be close to正文 size (about 10.5 pt on the bundled B5 layout), not the older compressed 9.45 pt setting. **Both the entry title and its page number must be clickable.** Structural macros must create an explicit destination whose name exactly matches the destination written to the `.toc`; do not rely on `\pdfbookmark` auto-suffixed destination names. Automated QA must resolve every TOC destination and verify complete link coverage.
+
 ## 5. Page numbering and page labels
 
 Page numbering is a publication invariant, not a cosmetic detail.
@@ -162,6 +164,7 @@ The bundled design is a restrained B5 Chinese academic-book layout:
 - two-sided text block;
 - inner margin about 22 mm, outer about 18 mm, top about 21 mm, bottom about 24 mm;
 -正文 about 10.7 pt with approximately 15.5 pt leading;
+- generated TOC about 10.5 pt with comfortable leading, with clickable titles and page numbers;
 - 2em first-line indent;
 - moderate Chapter opening space rather than half-page blank bands;
 - H2/H3/H4 sized clearly but conservatively;
@@ -296,6 +299,8 @@ Verify:
 - no duplicate PDF destinations;
 - overfull boxes remain below the configured tolerance or are explicitly investigated;
 - note forward links, note anchors, and backlinks match the source note counts;
+- every generated TOC entry has a resolvable destination;
+- both each TOC title and its page number are clickable;
 - internal destinations are valid.
 
 The QA report must include the source SHA-256 so a report from an older/different master cannot be mistaken for proof that the current source built successfully.
@@ -351,10 +356,17 @@ Do not patch a previously generated `book.tex` and treat it as the next build so
 Primary deliverables for the PDF stage:
 
 ```text
-<BOOK_STEM>.pdf
-qa_report.txt
+<中文书名安全文件名>.pdf
+<中文书名安全文件名>_qa_report.txt
 ```
+
+The default script naming derives these from `TITLE`; do not fall back to an English `<BOOK_STEM>_中译.pdf` when the finalized Chinese title is known.
 
 Do not normally deliver temporary normalized Markdown, generated TeX, `.aux`, `.log`, `.toc`, `.xdv`, rendered PNGs, or debugging files.
 
 When the whole publishing workflow is complete and `zlibrary_metadata.md` has also been generated, create `<BOOK_STEM>_final.zip` according to the project instruction. Include only the final master, final PDF, EPUB if applicable, glossary, metadata, and `assets/` if present; exclude Part working files, build intermediates, and `book_plan.md` unless the user explicitly requests them.
+
+
+## Final publishing-stage handoff
+
+The PDF artifact should normally be named from the finalized Chinese title, not `<BOOK_STEM>_中译.pdf`. In this project, when EPUB and PDF are requested together, PDF success is not a separate conversational stopping point: after visual/structural QA, continue in the same turn to `zlibrary_metadata.md` and clean final ZIP packaging as defined by the project/Translation Skill. Do not put URL-encoded names such as `%20` into the package.

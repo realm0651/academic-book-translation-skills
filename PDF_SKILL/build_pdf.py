@@ -43,7 +43,7 @@ PREAMBLE_FILE = TOOLKIT_DIR / "preamble.tex"
 # ============================ USER SETTINGS ============================
 # The authoritative input must be the final <BOOK_STEM>_master.md.
 INPUT_MD = "book_master.md"
-OUTPUT_PDF = ""  # blank -> same stem as INPUT_MD with .pdf
+OUTPUT_PDF = ""  # blank -> filename-safe Chinese TITLE + .pdf; fallback to input stem
 
 TITLE = ""
 SHORT_TITLE = ""
@@ -71,6 +71,17 @@ FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 IMAGE_LINE_RE = re.compile(r"^(\s*)!\[([^\]]*)\](\([^\n)]+\)(?:\{[^\n}]*\})?\s*)$")
 CAPTION_LINE_RE = re.compile(r"^\s*(?:\*\*(?:图|表)\s*.*\*\*|\*(?:图|表)\s*.*\*)\s*$")
 NOTE_REF_RE = re.compile(r"(?<!\\)\[\^([^\]\r\n]+)\](?!:)")
+
+
+UNSAFE_FILENAME_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]+')
+
+def safe_filename_stem(value: str) -> str:
+    """Normalize user-facing artifact basenames; never emit spaces or literal %20."""
+    value = value.replace("%20", " ").replace("：", "_").replace(":", "_")
+    value = re.sub(r"\s+", "_", value.strip())
+    value = UNSAFE_FILENAME_RE.sub("_", value)
+    value = re.sub(r"_+", "_", value).strip("._ ")
+    return value or "book"
 NOTE_DEF_RE = re.compile(r"(?m)^\[\^([^\]\r\n]+)\]:")
 
 
@@ -129,6 +140,8 @@ class PdfStats:
     image_occurrences: int
     image_xrefs: int
     link_count: int
+    toc_link_annotations: int
+    toc_link_targets: int
     warnings: list[str]
 
 
@@ -343,6 +356,12 @@ def _inline_text(items: Iterable[Any]) -> str:
                     pieces.append(str(content))
                 elif isinstance(content, list):
                     pieces.append(str(content[-1]))
+            elif kind == "Quoted" and isinstance(content, list) and len(content) == 2:
+                quote_kind, quoted = content
+                qname = quote_kind.get("t") if isinstance(quote_kind, dict) else str(quote_kind)
+                pieces.append("“" if qname == "DoubleQuote" else "‘")
+                walk(quoted)
+                pieces.append("”" if qname == "DoubleQuote" else "’")
             elif kind in {"Space", "SoftBreak", "LineBreak"}:
                 pieces.append(" ")
             elif content is not None:
@@ -373,6 +392,12 @@ def normalize_structural_title(title: str) -> str:
     prefix = match.group(1)
     rest = title[len(prefix):].lstrip(" \t　")
     return prefix if not rest else prefix + "　" + rest
+
+def _title_key(value: str) -> str:
+    value = value.replace("：", ":")
+    value = re.sub(r"[\s_]+", "", value)
+    value = re.sub(r"[《》〈〉“”‘’\"'`：:·•—–-]", "", value)
+    return value.casefold()
 
 def validate_ast(
     ast: dict[str, Any],
@@ -425,7 +450,10 @@ def validate_ast(
     excluded = set(toc_exclude_h1)
 
     for i, value in enumerate(h1):
-        if i == 0 and suppress_first_h1 and value not in toc_set and value != notes_title:
+        if (
+            i == 0 and suppress_first_h1 and value not in toc_set and value != notes_title
+            and _title_key(value) == _title_key(title)
+        ):
             kind = "source-title"
         elif value in toc_set:
             kind = "source-toc"
@@ -768,6 +796,12 @@ def _font_inventory(doc: fitz.Document) -> list[tuple[str, str, bool]]:
     return sorted(rows.values(), key=lambda row: row[0].lower())
 
 
+
+def normalize_outline_title_for_qa(value: str) -> str:
+    """Canonicalize TeX-style smart quotes found in PDF outline extraction."""
+    value = value.replace("``", "“").replace("''", "”")
+    return re.sub(r"\s+", " ", value).strip()
+
 def qa_pdf(
     pdf_path: Path,
     *,
@@ -782,7 +816,7 @@ def qa_pdf(
         if doc.page_count <= 0:
             raise BuildError("PDF has no pages")
         outline = doc.get_toc(simple=True)
-        actual_pairs = [(int(row[0]), str(row[1])) for row in outline]
+        actual_pairs = [(int(row[0]), normalize_outline_title_for_qa(str(row[1]))) for row in outline]
         if actual_pairs != manifest.expected_outline:
             raise BuildError(
                 "PDF outline does not match the structure inferred from master.md.\n"
@@ -836,6 +870,9 @@ def qa_pdf(
         image_occurrences = 0
         image_xrefs: set[int] = set()
         link_count = 0
+        toc_link_annotations = 0
+        toc_targets: set[str] = set()
+        resolved_names = doc.resolve_names() if hasattr(doc, "resolve_names") else {}
         for page in doc:
             images = page.get_images(full=True)
             image_occurrences += len(images)
@@ -846,6 +883,27 @@ def qa_pdf(
             invalid = [link for link in internal if link.get("page", -1) < 0]
             if invalid:
                 raise BuildError(f"Invalid internal PDF links found on page {page.number + 1}")
+            for link in links:
+                dest = str(link.get("nameddest") or "")
+                if dest.startswith("book-h1-") or dest == "book-notes":
+                    toc_link_annotations += 1
+                    toc_targets.add(dest)
+                    if resolved_names and dest not in resolved_names:
+                        raise BuildError(
+                            f"TOC link target {dest!r} is not a resolvable named destination "
+                            f"(page {page.number + 1})"
+                        )
+        if len(toc_targets) != len(manifest.expected_outline):
+            raise BuildError(
+                "TOC link coverage does not match inferred book outline: "
+                f"{len(toc_targets)} unique targets != {len(manifest.expected_outline)} entries"
+            )
+        # linktoc=all should normally make both title and page number clickable.
+        if toc_link_annotations < len(manifest.expected_outline) * 2:
+            raise BuildError(
+                "TOC is not fully clickable from both entry titles and page numbers: "
+                f"{toc_link_annotations} annotations for {len(manifest.expected_outline)} entries"
+            )
         if image_occurrences < expected_images:
             raise BuildError(
                 f"PDF image occurrence count is too small: {image_occurrences} < {expected_images}"
@@ -887,6 +945,8 @@ def qa_pdf(
             image_occurrences=image_occurrences,
             image_xrefs=len(image_xrefs),
             link_count=link_count,
+            toc_link_annotations=toc_link_annotations,
+            toc_link_targets=len(toc_targets),
             warnings=warnings,
         )
 
@@ -935,6 +995,8 @@ def write_qa_report(
         f"Image captions deduplicated in temporary input: {normalize_stats.captions_deduped}",
         "Duplicate caption pattern found: False",
         f"PDF annotation/link count: {pdf_stats.link_count}",
+        f"TOC clickable annotations: {pdf_stats.toc_link_annotations}",
+        f"TOC unique resolved targets: {pdf_stats.toc_link_targets}",
         "",
         "Note QA:",
         f"  source references: {len(source_notes.refs)}",
@@ -983,17 +1045,17 @@ def build(args: argparse.Namespace) -> tuple[Path, Path, PdfStats]:
     input_path = Path(args.input).expanduser().resolve()
     if not input_path.is_file():
         raise BuildError(f"Input Markdown not found: {input_path}")
-    output_value = args.output or (input_path.stem + ".pdf")
+    title = args.title or TITLE or input_path.stem.removesuffix("_master")
+    output_value = args.output or (safe_filename_stem(title) + ".pdf")
     output_path = Path(output_value).expanduser()
     if not output_path.is_absolute():
         output_path = (Path.cwd() / output_path).resolve()
-    qa_path = Path(args.qa_report).expanduser() if args.qa_report else output_path.with_name("qa_report.txt")
+    qa_path = Path(args.qa_report).expanduser() if args.qa_report else output_path.with_name(safe_filename_stem(title) + "_qa_report.txt")
     if not qa_path.is_absolute():
         qa_path = (Path.cwd() / qa_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     qa_path.parent.mkdir(parents=True, exist_ok=True)
 
-    title = args.title or TITLE or input_path.stem.removesuffix("_master")
     short_title = args.short_title or SHORT_TITLE or title
     authors = list(args.author or AUTHORS)
     mainmatter_start = args.mainmatter_start or MAINMATTER_START

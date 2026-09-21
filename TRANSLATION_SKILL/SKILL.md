@@ -1,25 +1,22 @@
 ---
 name: social-science-book-translation
 description: >
-  Translate complete English-language social science, history, political science, philosophy,
-  political economy, anthropology, labour studies, gender studies, and related academic books into
-  structured Chinese Markdown. Use when the source is one full PDF with either a reliable native
-  text layer or a usable OCR text layer, and the task requires whole-book structure analysis,
-  note-system classification, resumable book_plan workflow state, glossary management, Part-by-Part
-  faithful translation, OCR-aware correction when needed, cross-session continuation,
-  footnote/completeness QA, and final Markdown assembly. Do not use for
-  image-only PDFs without a usable text layer, whole-book OCR, EPUB production, or PDF
-  typesetting.
+  Translate complete English-language academic books into structured Chinese Markdown with resumable
+  book_plan/glossary state, note-system handling, Part-by-Part QA, and final master assembly. Supports
+  native-text PDFs (PDF-T), scanned PDFs with usable OCR layers (PDF-O), and image-only PDFs (PDF-I)
+  through a staged Part-by-Part OCR/source-reconstruction pass that creates corrected English Markdown
+  before translation. Preserve the original PDF as source authority; do not use one-shot whole-book OCR.
 ---
 
 # Social Science Book Translation
 
 ## Scope and core architecture
 
-This skill handles the workflow from one original English **PDF with a usable text layer** through:
+This skill handles the workflow from one original English **PDF** through:
 
-- a native text PDF with a reliable embedded text layer; or
-- an image/scanned PDF with an OCR text layer that is sufficiently complete and recoverable for scholarly translation.
+- a native text PDF with a reliable embedded text layer (PDF-T);
+- an image/scanned PDF with an OCR text layer that is sufficiently complete and recoverable (PDF-O); or
+- an image-only / unusable-text-layer PDF (PDF-I) when staged Part-by-Part OCR and visual source reconstruction can recover the printed text reliably.
 
 1. whole-book structural inspection;
 2. classification of the book's note system;
@@ -36,17 +33,20 @@ This skill handles the workflow from one original English **PDF with a usable te
 
 Do not perform EPUB generation or PDF typesetting unless the user explicitly asks for those tasks or another skill handles them.
 
-Supporting script shipped with this skill:
+Supporting scripts shipped with this skill:
 
 ```text
 scripts/check_footnotes.py
+scripts/package_final.py
 ```
 
-Use it for footnote QA instead of reimplementing the same structural checks ad hoc.
+Use `check_footnotes.py` for footnote QA instead of reimplementing the same structural checks ad hoc. Use `package_final.py` at the final publishing boundary to build a clean ZIP with explicit, filename-safe archive names rather than copying URL-encoded sandbox names.
 
 ## Book-specific filename stem
 
-At initialization, derive one stable `BOOK_STEM` for the book. By default it is the original PDF filename without the `.pdf` extension; apply only minimal filename-safe cleanup when necessary, record the chosen value in `book_plan.md`, and do not change it later. The literal word `book` is never a fixed output prefix: source `book.pdf` yields `book_part1_中译.md`, while another source uses that book's own `BOOK_STEM`. Use `BOOK_STEM` for book-specific translated Part files, appendix/Notes working files, and the final master. Keep the generic workspace names `book_plan.md`, `glossary.md`, and `assets/` unchanged.
+At initialization, derive one stable `BOOK_STEM` for the book from the original PDF filename without `.pdf`, then normalize it for cross-platform delivery: replace every whitespace run and any literal `%20` with `_`, replace filesystem-unsafe filename characters with `_`, collapse repeated underscores, and trim leading/trailing underscores. Record the chosen value in `book_plan.md` and never change it later. **Workflow output filenames must not contain spaces or literal `%20`.** The literal word `book` is never a fixed prefix: `Acts of Resistance.pdf` becomes `Acts_of_Resistance`, producing `Acts_of_Resistance_part1_中译.md`, `Acts_of_Resistance_part1_原文校正版.md` when needed, and `Acts_of_Resistance_master.md`. Keep `book_plan.md`, `glossary.md`, `zlibrary_metadata.md`, and `assets/` fixed. New asset filenames should also avoid spaces when they are created.
+
+Final EPUB/PDF filenames are different: derive them from the finalized **Chinese book title**, not from `BOOK_STEM` and not from an English-name-plus-`中译` suffix. Apply the same filename-safe normalization to the Chinese title, including replacing title separators such as `:` / `：` with `_` when needed for portability. Example: `抵抗行动：反抗市场暴政` → `抵抗行动_反抗市场暴政.epub` and `抵抗行动_反抗市场暴政.pdf`.
 
 The previous workflow that created `<BOOK_STEM>_part1.pdf`, `<BOOK_STEM>_part2.pdf`, `<BOOK_STEM>_notes.pdf`, and similar derivative PDFs is **not the default workflow anymore**. Logical Parts are translation units recorded in `book_plan.md`; they are not source files that must be generated in advance.
 
@@ -111,13 +111,17 @@ For PDF-O, enable **extraction + semantic/OCR correction mode** for the entire t
 
 Use PDF-I when there is no usable text layer, or when the existing layer is so incomplete, garbled, or badly ordered that continuous source text cannot be reconstructed reliably.
 
-PDF-I is outside the current workflow. In that case:
+PDF-I is supported through **staged source reconstruction**, not through a one-shot whole-book OCR pass. The original page image remains authoritative. During initialization, inspect the visible pages, identify the book structure and logical Part ranges, and record a `Source reconstruction stage` in `book_plan.md`. Then process one logical Part at a time:
 
-- do not pretend extraction succeeded;
-- do not silently launch whole-book OCR;
-- stop initialization and tell the user that the current file is image-only or has an unusable text layer.
+1. OCR only the current Part's planned physical pages;
+2. treat OCR as an untrusted draft transcription;
+3. correct headings, paragraphs, names, quotations, dates, numbers, note calls, hyphenation, reading order, and suspicious characters against the visible page images;
+4. do not editorially rewrite legible source claims or data;
+5. mark genuinely unreadable text for verification rather than guessing;
+6. save the corrected English source as `<BOOK_STEM>_partN_原文校正版.md` (and analogous Notes/appendix source files when needed);
+7. QA the reconstructed source before marking that source unit `done`.
 
-This skill deliberately does not define a whole-book OCR pipeline.
+By default, complete the planned source-reconstruction units before starting Chinese translation. Translation then uses the corrected English Markdown as the working text while the original PDF/page image remains the final source authority for spot checks. Do not create a single giant OCR dump and do not let raw OCR become a second source of authority.
 
 ## 2.1 Representative inspection
 
@@ -165,6 +169,12 @@ The purpose is **source reconstruction, not editorial correction**. Therefore:
 The corrected reading—not the raw OCR string—is the source used for Chinese translation and glossary decisions.
 
 Do not create a separate cleaned-English edition unless the user requests one. Do not re-OCR the complete book by default. Local OCR may be used only as a last resort for isolated passages when ordinary extraction plus direct visual inspection is insufficient and a suitable OCR tool is available.
+
+## 2.3 Staged source-reconstruction mode for PDF-I
+
+For PDF-I, the corrected-English Part Markdown is an explicit checkpoint artifact rather than an optional cleaned edition. `book_plan.md` must separately track source-reconstruction status and translation status so that `继续` can resume at the next unfinished source Part or, after reconstruction is complete, the next untranslated Part. The minimum PDF-I resume set is the original PDF + current `book_plan.md` + current `glossary.md` + the corrected source Markdown for the Part being translated. Completed corrected-source Parts do not need to be re-OCRed.
+
+OCR is permissible here only because PDF-I has no usable text layer. Use the smallest planned page range that completes the current logical unit, and visually verify the critical content. If the scan quality is too poor for reliable reconstruction even after page-image inspection, mark that unit `blocked` rather than fabricate text.
 
 ---
 
@@ -281,8 +291,8 @@ A useful plan should contain at least:
 
 - Source PDF: `BookName.pdf`
 - BOOK_STEM: `BookName`
-- PDF type: PDF-T / PDF-O
-- Text handling: direct extraction / extraction + semantic/OCR correction
+- PDF type: PDF-T / PDF-O / PDF-I
+- Text handling: direct extraction / extraction + semantic/OCR correction / staged OCR + visual source reconstruction
 - Total physical PDF pages: xxx
 - Notes type: Case A / Case B
 - Book-specific profile: none / `ProfileName.md`
@@ -1224,7 +1234,7 @@ Do not create long progress reports unless requested.
 
 ## 24.3 Previous translated Parts are not routine resume dependencies
 
-Do not require all completed Part Markdown files merely to translate the next Part. Normal continuity should come from `book_plan.md`, `glossary.md`, the original PDF, and any book profile.
+Do not require all completed translated Part Markdown files merely to translate the next Part. Normal continuity should come from `book_plan.md`, `glossary.md`, the original PDF, and any book profile; for PDF-I translation, also use the already completed corrected-source Markdown for the current Part instead of re-OCRing it.
 
 Read an earlier translated Part only when the current source explicitly refers back to wording, a coined expression, a previously translated quotation, or another detail that cannot be resolved reliably from the glossary / plan alone. This is targeted back-reference checking, not routine reloading of the entire translated history.
 
@@ -1466,14 +1476,14 @@ The assembly stage is complete only after both footnote QA and the Pandoc handof
 When the user provides a complete book PDF and asks to start:
 
 1. inspect representative pages and classify the source as PDF-T, PDF-O, or PDF-I;
-2. if PDF-I, stop and explain that the current workflow does not handle image-only / unusable-text-layer PDFs;
-3. if PDF-T or PDF-O, inspect the complete PDF; for PDF-O, keep extraction + semantic/OCR correction mode active throughout later stages;
-4. classify Case A / Case B;
-5. create `book_plan.md` with the PDF type, text-handling mode, logical Part plan, source ranges, translation scope, conventions, and initial workflow state;
-6. create initial whole-book `glossary.md`, using corrected source readings for PDF-O;
-7. verify those files exist;
-8. do not physically split the PDF by default;
-9. do not automatically translate Part 1 unless the user also asked to begin translation immediately.
+2. inspect the complete book structure; for PDF-O, keep extraction + semantic/OCR correction active throughout; for PDF-I, plan staged source reconstruction before translation;
+3. classify Case A / Case B;
+4. create `book_plan.md` with PDF type, text-handling mode, logical Part ranges, source-reconstruction status when PDF-I, translation scope, conventions, and initial workflow state;
+5. create initial whole-book `glossary.md` from reliably read source material;
+6. verify those files exist;
+7. do not physically split the PDF by default;
+8. for PDF-I set `Next action` to reconstruct/OCR-correct Part 1; for PDF-T/PDF-O set it to translate Part 1;
+9. do not automatically execute the next stage unless the user also asked to continue immediately.
 
 A concise initialization status is enough:
 
@@ -1487,12 +1497,12 @@ When the user asks to translate or says `继续`:
 
 1. read `book_plan.md`;
 2. read the newest glossary;
-3. open the original PDF at the planned range;
-4. complete the next logical Part;
-5. run QA;
+3. follow `Next action`: for PDF-I source reconstruction, OCR/correct the next source Part and save `<BOOK_STEM>_partN_原文校正版.md`; otherwise open the planned source range/corrected source Part and translate the next logical Part;
+4. complete the current unit;
+5. run the appropriate source-reconstruction or translation QA;
 6. update glossary if needed;
 7. update `book_plan.md`;
-8. deliver the translated Markdown and any changed glossary/plan files.
+8. deliver the current checkpoint files.
 
 When the user asks to integrate all completed translations:
 
@@ -1520,9 +1530,9 @@ Never claim a PDF, Markdown file, glossary, plan, or other artifact exists unles
 ```text
 original book.pdf
 → classify PDF-T / PDF-O / PDF-I
-→ PDF-I: stop (unsupported image-only / unusable text layer)
 → PDF-T: direct extraction
 → PDF-O: extraction + semantic/OCR correction throughout
+→ PDF-I: staged Part OCR → visual correction → <BOOK_STEM>_partN_原文校正版.md → translate after source reconstruction
 → inspect complete book
 → identify centralized Notes range
 → create book_plan.md
@@ -1555,9 +1565,9 @@ original book.pdf
 ```text
 original book.pdf
 → classify PDF-T / PDF-O / PDF-I
-→ PDF-I: stop (unsupported image-only / unusable text layer)
 → PDF-T: direct extraction
 → PDF-O: extraction + semantic/OCR correction throughout
+→ PDF-I: staged Part OCR → visual correction → <BOOK_STEM>_partN_原文校正版.md → translate after source reconstruction
 → inspect complete book
 → identify embedded / chapter-end notes
 → create book_plan.md
@@ -1587,7 +1597,7 @@ The key invariant is:
 
 ```text
 one original PDF as source
-+ PDF-T direct extraction OR PDF-O extraction + semantic/OCR correction
++ PDF-T direct extraction OR PDF-O extraction + semantic/OCR correction OR PDF-I staged source reconstruction
 + one persistent book_plan.md as book-specific roadmap/state
 + one current glossary.md as translation authority
 + logical Parts as processing units
@@ -1599,9 +1609,9 @@ The resulting `<BOOK_STEM>_master.md` should be structurally stable enough to ha
 
 ---
 
-## PDF-O extension boundary
+## PDF-O / PDF-I extension boundary
 
-PDF-O support changes only the source-reading layer. Unless the user explicitly asks otherwise, it does **not** change:
+PDF-O and PDF-I change only the source-reading layer and checkpoint sequence. PDF-I adds corrected-source Markdown checkpoints before translation. Unless the user explicitly asks otherwise, it does **not** change:
 
 - Case A / Case B note classification or note normalization;
 - logical Part planning or source-range conventions;
@@ -1611,11 +1621,11 @@ PDF-O support changes only the source-reading layer. Unless the user explicitly 
 - downstream EPUB / PDF publishing;
 - Z-Library metadata fields or timing.
 
-Those stages follow the existing rules exactly; PDF-O merely requires that the English source be reconstructed reliably from extraction plus semantic/visual correction before those rules are applied.
+Those stages follow the existing rules exactly. PDF-O reconstructs uncertain text from extraction plus semantic/visual correction; PDF-I reconstructs each planned source Part from OCR plus direct page-image verification before translation.
 
 # 30. Z-Library upload metadata
 
-After the translation and final publishing workflow is complete, prepare a compact metadata sheet for the user's usual Z-Library upload step. This is a bibliographic handoff only; do not alter the translation, `<BOOK_STEM>_master.md`, EPUB, PDF, glossary, or assets.
+During the **same final publishing turn** that builds EPUB and PDF, also prepare the compact Z-Library metadata sheet and then create the final ZIP. Do not make metadata/packaging a separate user round unless required source metadata is genuinely unavailable. This is a bibliographic handoff only; do not alter the translation, `<BOOK_STEM>_master.md`, EPUB, PDF, glossary, or assets.
 
 Create:
 
@@ -1656,3 +1666,20 @@ Z-Library 上传信息已整理
 输出：zlibrary_metadata.md
 ```
 
+
+## Final package
+
+After EPUB/PDF QA and `zlibrary_metadata.md` are complete, create the final package in the same publishing stage. Prefer:
+
+```text
+python TRANSLATION_SKILL/scripts/package_final.py \
+  --book-stem <BOOK_STEM> \
+  --master <BOOK_STEM>_master.md \
+  --epub <中文书名安全文件名>.epub \
+  --pdf <中文书名安全文件名>.pdf \
+  --glossary glossary.md \
+  --metadata zlibrary_metadata.md \
+  [--assets assets]
+```
+
+The ZIP must contain only final deliverables: master, EPUB, PDF, glossary, metadata, and `assets/` when present. Do not include `book_plan.md`, Part files, corrected OCR-source Parts, build directories, QA renders, or other temporary files unless the user requests them. Top-level archive names must contain neither spaces nor literal `%20`; never use a sandbox/download URL string as an archive filename.
