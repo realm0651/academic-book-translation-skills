@@ -297,6 +297,8 @@ A useful plan should contain at least:
 - Notes type: Case A / Case B
 - Book-specific profile: none / `ProfileName.md`
 - Latest glossary: `glossary.md` v1.0
+- Part planning profile: ordinary / low-density / high-density / OCR-heavy
+- Target Part range: dynamic; e.g. 50–80 physical PDF pages for ordinary continuous-text books
 
 ## 2. Translation scope
 
@@ -314,9 +316,10 @@ Do not translate by default:
 
 | Unit | Contents | Physical PDF pages | Translation treatment |
 |---|---|---:|---|
-| Front matter | ... | 1–12 | Part 1 |
-| Introduction | ... | 13–40 | Part 2 |
-| Chapter 1 | ... | 41–78 | Part 3 |
+| Front matter + Preface | ... | 1–12 | Part 1 |
+| Introduction | ... | 13–28 | Part 1 |
+| Chapter 1 | ... | 29–61 | Part 2 |
+| Chapter 2 | ... | 62–96 | Part 2 |
 | Notes | ... | 301–336 | Case A centralized Notes |
 | References | ... | 337–360 | inspect only / not translated |
 
@@ -324,9 +327,9 @@ Do not translate by default:
 
 | Part | Contents | Source range in original PDF | Output Markdown | Footnote prefix | Status | Glossary used |
 |---|---|---|---|---|---|---|
-| Part 1 | Front matter + Preface | pp. 1–18 | `<BOOK_STEM>_part1_中译.md` | `pr` where applicable | pending | v1.0 |
-| Part 2 | Introduction | pp. 19–47 | `<BOOK_STEM>_part2_中译.md` | `intro` | pending | v1.0 |
-| Part 3 | Chapter 1 | pp. 48–91 | `<BOOK_STEM>_part3_中译.md` | `ch01` | pending | v1.0 |
+| Part 1 | Front matter + Preface + Introduction | pp. 1–28 | `<BOOK_STEM>_part1_中译.md` | `pr` / `intro` | pending | v1.0 |
+| Part 2 | Chapters 1–2 | pp. 29–96 | `<BOOK_STEM>_part2_中译.md` | `ch01` / `ch02` | pending | v1.0 |
+| Part 3 | Chapters 3–4 | pp. 97–158 | `<BOOK_STEM>_part3_中译.md` | `ch03` / `ch04` | pending | v1.0 |
 
 ## 5. Centralized Notes plan
 
@@ -403,68 +406,98 @@ Treat the updated `book_plan.md` + updated `glossary.md` + newly completed Part 
 
 # 6. Logical Part planning rules
 
-A Part is now a **logical translation unit inside the original PDF**, not a separate PDF file.
+A Part is a **logical translation unit inside the original PDF**, not a separate PDF file. Part planning is **dynamic**: page count is only a workload proxy, not a fixed rule. The objective is to minimize unnecessary workflow fragmentation while keeping every Part small enough to translate completely, perform OCR/source verification where needed, rebuild tables/figures, run QA, and update `glossary.md` / `book_plan.md` reliably in one round.
 
-## 6.1 Front matter and Preface
+Planning priorities, in order, are:
 
-Everything through the end of the **Preface** should normally form Part 1.
+1. preserve meaningful book structure and avoid breaking paragraphs, tables, figures, quotations, or note blocks;
+2. keep each Part within a stable one-round workload for the actual source;
+3. **reduce the total number of Parts** by combining adjacent short chapters or sections when this does not compromise reliability;
+4. use chapter boundaries as preferred breakpoints, not as mandatory Part boundaries.
 
-This may include title pages, copyright, dedication, contents, lists of figures/tables, Foreword, Acknowledgements, and Preface.
+For an ordinary 250–350-page social-science / history / political-theory book dominated by continuous prose, the normal planning target is roughly **4–7 body Parts**, excluding a separate centralized Notes stage when Case A applies. Do not mechanically create one Part per chapter when two or more adjacent chapters can comfortably fit in one translation round.
+
+## 6.1 Front matter, Preface, Introduction and opening chapters
+
+Front matter through the end of the **Preface** belongs at the beginning of Part 1. This may include title pages, copyright, dedication, contents, lists of figures/tables, Foreword, Acknowledgements, and Preface.
+
+Do **not** isolate a short front-matter block merely because it ends at the Preface. If the Introduction and/or first short chapter(s) fit comfortably within the same workload envelope, merge them into Part 1 while retaining their original top-level headings.
+
+Examples:
 
 ```text
-Front matter + Preface → Part 1
+Front matter + Preface + Introduction → Part 1
+Front matter + Preface + Introduction + Chapter 1 → Part 1
 ```
 
-If there is no explicit Preface, use the last front-matter section before Introduction or Chapter 1 as the end of Part 1.
+If there is no explicit Preface, use the last front-matter section before the Introduction or Chapter 1 as the structural boundary, then decide dynamically whether the following section should remain in Part 1.
 
-If an Introduction follows the Preface, it normally becomes the next Part rather than being automatically merged into Part 1.
+## 6.2 Chapters: combine by default when capacity permits
 
-## 6.2 Chapters
+After the front matter, **one chapter per Part is not the default**. Instead, pack consecutive chapters or major sections into the same Part when they form a manageable single-round workload.
 
-After front matter, the default unit is **one chapter per Part**.
+If two or more adjacent short chapters together remain within the stable capacity for the source, they should normally be merged. Keep every original chapter heading intact and retain chapter-based footnote prefixes.
 
 For example:
 
 ```text
-Part 1 = front matter + Preface
-Part 2 = Introduction
-Part 3 = Chapter 1
-Part 4 = Chapter 2
-Part 5 = Chapter 3
+Part 1 = front matter + Preface + Introduction
+Part 2 = Chapters 1–2
+Part 3 = Chapters 3–4
+Part 4 = Chapters 5–6
 ```
 
-Preserve chapter boundaries whenever practical.
+Do not create a new Part merely because a chapter ends. Conversely, do not force unrelated material together when the next natural boundary would clearly improve translation or QA reliability.
 
-## 6.3 Acceptable Part size
+## 6.3 Dynamic workload bands
 
-A Part of approximately **20–80 physical PDF pages** is acceptable.
+Estimate Part size from **content density and source difficulty**, not page count alone. Physical pages remain a convenient planning signal.
 
-Do not force all Parts toward identical length. Semantic boundaries are more important than numerical symmetry.
+For PDF-T and good-quality PDF-O books, use these approximate bands:
 
-## 6.4 Parts shorter than 20 pages
+- **Low-density continuous prose:** about **60–85 pages**; a coherent Part may approach or slightly exceed 85 pages when tables, notes, figures, and OCR correction are light.
+- **Ordinary / medium-density academic prose:** about **50–75 pages** is the preferred default.
+- **High-density material:** about **30–55 pages** when there are many tables, formulas, figures, quotations, dense footnote calls, complex layouts, or unusually high translation output.
+- **OCR-heavy PDF-O:** reduce the range further when page-by-page visual verification is frequent; OCR verification workload counts as substantive workload even if the extracted word count is modest.
 
-If a prospective Part is under approximately 20 pages, it may be merged with an adjacent Part.
+These are **soft planning bands**, not hard limits. A clean 80-page prose section can be safer than a 35-page section containing difficult tables and badly corrupted OCR. Do not split or merge solely to satisfy a numeric target.
+
+## 6.4 Avoid undersized Parts
+
+A prospective Part under roughly **35–40 pages** should normally be merged with an adjacent Part unless there is a substantive reason to keep it separate, such as:
+
+- a major book-division boundary;
+- a very dense or technically difficult chapter;
+- poor OCR requiring extensive page-image checking;
+- a large number of tables, figures, formulas, or Case B note definitions;
+- a natural translation-stage boundary that materially improves QA.
 
 When both previous and next Parts are possible merge targets:
 
-1. compare their page counts;
-2. prefer merging with the adjacent Part that is itself shorter;
-3. keep the resulting Part reasonably manageable;
-4. preserve conceptual and chapter coherence where possible.
+1. prefer the merge that preserves conceptual continuity;
+2. prefer a resulting workload near the appropriate dynamic band above;
+3. avoid creating a tiny residual Part elsewhere;
+4. keep original chapter headings and footnote sequences unchanged.
 
-A merged Part may contain more than one chapter. Keep the original chapter headings intact.
+## 6.5 Long chapters and oversized candidate Parts
 
-## 6.5 Chapters longer than 80 pages
+Do not automatically split a chapter merely because it exceeds 80 pages. First estimate the actual workload. A low-density, clean chapter may remain one Part if it can be translated and QA'd reliably in one round.
 
-If a single chapter exceeds roughly 80 pages:
+When a chapter or combined candidate Part is genuinely too large:
 
 1. inspect its internal section structure;
-2. divide it into two or more logical Parts at the highest meaningful internal heading boundary;
-3. prefer a natural conceptual break;
-4. aim for resulting Parts within roughly 20–80 pages;
-5. never divide a paragraph, table, figure block, or note block arbitrarily.
+2. split at the highest meaningful internal heading boundary;
+3. prefer a conceptual or argumentative break;
+4. avoid leaving either side unnecessarily small;
+5. never divide a paragraph, table, figure block, quotation block, or note block arbitrarily.
 
 Sequential Part numbers are still used even if two Parts belong to the same chapter. Footnote IDs remain chapter-based where the chapter is known.
+
+## 6.5.1 Whole-book planning sanity check
+
+Before finalizing `book_plan.md`, review the complete Part plan as a whole. Ask whether adjacent Parts can be merged without threatening one-round completeness or QA. For ordinary prose-heavy books, a plan with many 20–35-page Parts is a warning sign that the book has probably been over-fragmented.
+
+The planning goal is **the fewest reliable Parts**, not the greatest number of structurally neat Parts.
 
 ## 6.6 Analytical appendices
 
