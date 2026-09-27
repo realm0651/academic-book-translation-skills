@@ -318,11 +318,19 @@ li > p {
 a.footnote-ref {
   text-decoration: none;
   white-space: nowrap;
+  display: inline-block;
+  min-width: 1.15em;
+  padding: 0 0.10em;
+  text-align: center;
+  font-size: 0.80em;
+  line-height: 1;
+  vertical-align: super;
 }
 
+/* 兼容旧内容中仍包有 <sup> 的脚注标记；新版原生 EPUB3 注号无需 <sup>。 */
 a.footnote-ref sup {
-  font-size: 0.75em;
-  line-height: 0;
+  font-size: 1em;
+  line-height: 1;
 }
 
 section.footnotes,
@@ -359,7 +367,8 @@ div.footnotes p,
 a.footnote-back,
 a[role="doc-backlink"] {
   text-decoration: none;
-  margin-left: 0.25em;
+  margin-right: 0.08em;
+  font-weight: 600;
 }
 
 /* ---------- 表注 / 图片说明等 ---------- */
