@@ -1712,7 +1712,8 @@ python TRANSLATION_SKILL/scripts/package_final.py \
   --pdf <中文书名安全文件名>.pdf \
   --glossary glossary.md \
   --metadata zlibrary_metadata.md \
+  --cover cover.png \
   [--assets assets]
 ```
 
-The ZIP must contain only final deliverables: master, EPUB, PDF, glossary, metadata, and `assets/` when present. Do not include `book_plan.md`, Part files, corrected OCR-source Parts, build directories, QA renders, or other temporary files unless the user requests them. Top-level archive names must contain neither spaces nor literal `%20`; never use a sandbox/download URL string as an archive filename.
+The ZIP must contain only final deliverables: master, EPUB, PDF, canonical `cover.png`, glossary, metadata, and `assets/` when present. Do not include `book_plan.md`, Part files, corrected OCR-source Parts, build directories, QA renders, or other temporary files unless the user requests them. Top-level archive names must contain neither spaces nor literal `%20`; never use a sandbox/download URL string as an archive filename.

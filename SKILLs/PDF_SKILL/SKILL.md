@@ -1,13 +1,13 @@
 ---
 name: academic-book-pdf
-description: Build and verify a polished B5 Chinese academic-book PDF from the final master Markdown produced by the translation workflow. Treat master.md as the only authoritative body source; normalize only in a temporary build directory; infer and validate book structure before typesetting; generate a restrained TOC/bookmark hierarchy, correct Roman-to-Arabic page labels, readable tables, non-upscaled images, native-size mathematics with shrink-only overflow handling, and bidirectional book-end notes; then run structural, typography, link, font, log, and rendered-page QA before delivery.
+description: Build and verify a polished B5 Chinese academic-book PDF from the final master Markdown and cover_pdf.png produced by COVER_SKILL. Treat master.md as the only authoritative body source; use the cover only as the first full-page title sheet; infer and validate book structure before typesetting; preserve readable tables, non-upscaled images, shrink-only mathematics, active TOC/bookmarks, correct page labels, and bidirectional book-end notes; then run structural and rendered-page QA before delivery.
 ---
 
 # Academic Book PDF
 
 ## Scope and authority
 
-Use this skill only after translation and whole-book Markdown assembly are complete. The authoritative input is the final book-specific `<BOOK_STEM>_master.md` produced by the Translation Skill. It is the **only正文 source of truth** for PDF generation.
+Use this skill only after translation, whole-book Markdown assembly, and `COVER_SKILL` are complete. The authoritative body input is the final book-specific `<BOOK_STEM>_master.md` produced by the Translation Skill; the standard cover input is `cover_pdf.png`. The master remains the **only正文 source of truth** for PDF generation.
 
 Never promote a temporary file such as `_build_master.md`, `_build_master_fixed.md`, `normalized_master.md`, `book_annotated.md`, generated TeX, or a debugging copy into a second正文 source. Every build starts again from the authoritative master. Temporary normalization exists only inside an ephemeral build directory and must not survive as workflow state.
 
@@ -29,13 +29,13 @@ template.tex
 When the user asks to generate the PDF:
 
 1. Read this Skill.
-2. Locate the final `<BOOK_STEM>_master.md` and `assets/` if present.
-3. Confirm the file is the assembled master, not an individual Part and not a prior temporary build input.
+2. Locate the final `<BOOK_STEM>_master.md`, `cover_pdf.png`, and `assets/` if present.
+3. Confirm the master is assembled and the cover is the completed `COVER_SKILL` output.
 4. Inspect the master structure before compiling. Do not assume Pandoc will interpret raw Markdown correctly merely because `#` characters are visible in the source.
 5. Adjust only necessary book-specific settings near the top of `build_pdf.py`, or use CLI overrides.
-6. Run `build_pdf.py`.
-7. Require the automated QA to pass.
-8. Render representative pages and visually inspect them. Automated compilation success is not publication QA.
+6. Run `build_pdf.py`; the standard cover replaces the old generated typographic title page and does not enter TOC/bookmarks.
+7. Require the automated QA to pass, including first-page cover coverage.
+8. Render the cover and representative interior pages and visually inspect them. Automated compilation success is not publication QA.
 9. Only after both structural and visual QA pass, deliver the final PDF.
 
 If the build fails, fix the narrowest build defect. Do not rewrite正文 as a workaround.
@@ -62,6 +62,8 @@ SUPPRESS_FIRST_H1 = True  # suppress first H1 only when it matches the configure
 TOC_EXCLUDE_H1 = ()       # exact H1 titles to render but omit from TOC/bookmarks
 OPENRIGHT = False         # digital-reading default
 ASSETS_DIR = "assets"
+COVER_IMAGE = "cover_pdf.png"
+REQUIRE_COVER = True
 MAX_OVERFULL_PT = 8.0
 ```
 
@@ -78,7 +80,7 @@ python PDF_SKILL/build_pdf.py \
   --author "作者"
 ```
 
-Repeat `--author` for multiple authors. With blank `OUTPUT_PDF`, a finalized title such as `抵抗行动：反抗市场暴政` produces `抵抗行动_反抗市场暴政.pdf`; spaces, literal `%20`, and unsafe filename punctuation are normalized to underscores.
+Repeat `--author` for multiple authors. `--cover` may override `cover_pdf.png`; in this project a cover is required by default, and `REQUIRE_COVER = False` should be used only when the user explicitly requests a coverless PDF. With blank `OUTPUT_PDF`, a finalized title such as `抵抗行动：反抗市场暴政` produces `抵抗行动_反抗市场暴政.pdf`; spaces, literal `%20`, and unsafe filename punctuation are normalized to underscores.
 
 ## 3. Master Markdown preflight: mandatory
 
@@ -287,6 +289,7 @@ A successful XeLaTeX exit code is only the beginning. `build_pdf.py` must fail o
 Verify:
 
 - PDF exists and has pages;
+- when a cover is configured, the first physical page contains the cover image with at least 90% page-area coverage and the cover does not enter TOC/bookmarks;
 - outline hierarchy exactly matches the inferred structural manifest;
 - ordinary H2/H3/H4 do not leak into the main outline;
 - Roman-to-Arabic page-label transition is correct;
@@ -311,7 +314,7 @@ After automated QA passes, render representative pages to images and inspect the
 
 At minimum inspect:
 
-- title page;
+- cover/title page;
 - TOC first page and last page if multi-page;
 - one front-matter page;
 - main-matter opening page (`1`);
@@ -364,7 +367,7 @@ The default script naming derives these from `TITLE`; do not fall back to an Eng
 
 Do not normally deliver temporary normalized Markdown, generated TeX, `.aux`, `.log`, `.toc`, `.xdv`, rendered PNGs, or debugging files.
 
-When the whole publishing workflow is complete and `zlibrary_metadata.md` has also been generated, create `<BOOK_STEM>_final.zip` according to the project instruction. Include only the final master, final PDF, EPUB if applicable, glossary, metadata, and `assets/` if present; exclude Part working files, build intermediates, and `book_plan.md` unless the user explicitly requests them.
+When the whole publishing workflow is complete and `zlibrary_metadata.md` has also been generated, create `<BOOK_STEM>_final.zip` according to the project instruction. Include only the final master, final PDF, EPUB if applicable, canonical `cover.png`, glossary, metadata, and `assets/` if present; exclude Part working files, cover build intermediates such as `cover_base.png`, other build intermediates, and `book_plan.md` unless the user explicitly requests them.
 
 
 ## Final publishing-stage handoff

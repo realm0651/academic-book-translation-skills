@@ -1,0 +1,4 @@
+interface:
+  display_name: Academic Book Cover
+  short_description: Create bilingual covers for translated academic books
+  default_prompt: Create and verify the final bilingual cover assets from the completed master Markdown and the original book cover.

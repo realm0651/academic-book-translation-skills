@@ -34,9 +34,25 @@ AUTHORS = []       # e.g. ["P. K. Edwards"]
 LANG = "zh-CN"
 
 TOC_TITLE = "目录"
-TOC_DEPTH = 2      # current TRANSLATION_SKILL: H1 book units, H2 main in-unit sections
+TOC_DEPTH = 2      # default: H1 chapter/major-unit + substantive H2 section navigation; omit H3+
 SPLIT_LEVEL = 1    # current TRANSLATION_SKILL: major book units are H1
 NOTES_TITLE = "注释"
+
+# Reader-compatibility defaults. Keep front matter in the book, but keep it out of
+# the navigation until the first numbered Part/Chapter/Book heading. Disable for
+# books whose Introduction/Preface must appear in the navigation.
+TOC_START_AT_FIRST_NUMBERED_UNIT = False
+
+# Pandoc must still create nav.xhtml/toc.ncx, but the visible navigation document
+# should NOT be inserted as a reading-flow page. We also strip Pandoc's legacy
+# OPF <guide type="toc"> because some importers recursively over-expand it.
+HIDE_NAV_DOCUMENT_FROM_SPINE = True
+REMOVE_LEGACY_TOC_GUIDE = True
+REMOVE_PAGE_LIST_NAV = True
+
+# Make footnote markers explicit text: [1] in正文 and [1]. at the note. This is
+# applied after Pandoc writes native same-XHTML EPUB3 footnotes.
+BRACKET_FOOTNOTE_NUMBERS = True
 
 # Keep matching source headings in the reading flow but omit them from navigation.
 # The script automatically adds TITLE and its colon-separated main/subtitle parts.
@@ -44,7 +60,8 @@ TOC_OMIT_HEADINGS = []
 AUTO_OMIT_METADATA_TITLE_HEADINGS = True
 
 ASSETS_DIR = "assets"
-COVER_IMAGE = ""  # optional, e.g. "assets/cover.jpg"
+COVER_IMAGE = "cover_epub.jpg"  # standard output from COVER_SKILL
+REQUIRE_COVER = True
 # ======================================================================
 
 
@@ -84,12 +101,21 @@ def title_heading_candidates(title: str) -> list[str]:
     return candidates
 
 
-def write_metadata(path: Path, title: str, authors: list[str], toc_omit: list[str]) -> None:
+def write_metadata(
+    path: Path,
+    title: str,
+    authors: list[str],
+    toc_omit: list[str],
+    *,
+    toc_start_at_first_numbered_unit: bool,
+) -> None:
     lines = [
         f"title: {q(title)}",
         f"lang: {q(LANG)}",
         f"toc-title: {q(TOC_TITLE)}",
         f"notes-title: {q(NOTES_TITLE)}",
+        "toc-start-at-first-numbered-unit: "
+        + ("true" if toc_start_at_first_numbered_unit else "false"),
     ]
     if authors:
         lines.append("author:")
@@ -147,12 +173,107 @@ def _classes(el: ET.Element) -> set[str]:
     return set(el.attrib.get("class", "").split())
 
 
+def _replace_native_footnote_markers(text: str) -> str:
+    """Render native Pandoc footnote links as literal [N] text, never CSS-only brackets."""
+    if not BRACKET_FOOTNOTE_NUMBERS:
+        return text
+
+    def repl(kind: str, value: str) -> str:
+        # Match a simple Pandoc-generated numeric anchor while preserving attributes.
+        # The optional <sup> branch also cleans older builds that wrapped the number.
+        pattern = re.compile(
+            r'(<a\b(?=[^>]*\bclass=["\'][^"\']*\b'
+            + re.escape(kind)
+            + r'\b[^"\']*["\'])[^>]*>)(?:\s*<sup>)?\s*\[?(\d+)\]?\s*(?:</sup>\s*)?(</a>)',
+            flags=re.IGNORECASE,
+        )
+        return pattern.sub(lambda m: f"{m.group(1)}[{m.group(2)}]{m.group(3)}", value)
+
+    text = repl("footnote-ref", text)
+    text = repl("footnote-back", text)
+    return text
+
+
+def _strip_legacy_toc_guide(opf_text: str) -> str:
+    if not REMOVE_LEGACY_TOC_GUIDE:
+        return opf_text
+    # Pandoc 3.x may emit an EPUB2 compatibility <guide> pointing to nav.xhtml.
+    # Some reader/import pipelines over-expand links reachable through that guide.
+    return re.sub(r"\s*<guide\b[^>]*>.*?</guide>\s*", "\n", opf_text, flags=re.DOTALL | re.IGNORECASE)
+
+
+def _strip_nav_from_spine(opf_text: str) -> str:
+    if not HIDE_NAV_DOCUMENT_FROM_SPINE:
+        return opf_text
+    # Defensive even though the build no longer passes --toc.
+    return re.sub(
+        r"\s*<itemref\b(?=[^>]*\bidref=[\"\']nav[\"\'])[^>]*/>\s*",
+        "\n",
+        opf_text,
+        flags=re.IGNORECASE,
+    )
+
+
+def _strip_page_list_nav(nav_text: str) -> str:
+    if not REMOVE_PAGE_LIST_NAV:
+        return nav_text
+    # Keep the required EPUB3 TOC navigation, remove only page-list navigation.
+    return re.sub(
+        r"\s*<nav\b(?=[^>]*\bepub:type=[\"\'][^\"\']*\bpage-list\b[^\"\']*[\"\'])[^>]*>.*?</nav>\s*",
+        "\n",
+        nav_text,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+
+
+def postprocess_epub(epub: Path) -> None:
+    """Apply narrow reader-compatibility fixes without touching the source master."""
+    tmp = epub.with_name(epub.stem + ".postprocess.tmp.epub")
+    with zipfile.ZipFile(epub, "r") as zin:
+        infos = zin.infolist()
+        payloads: dict[str, bytes] = {}
+        for info in infos:
+            data = zin.read(info.filename)
+            name = info.filename
+            if name.endswith((".xhtml", ".html")):
+                text = data.decode("utf-8")
+                text = _replace_native_footnote_markers(text)
+                if name.endswith("nav.xhtml"):
+                    text = _strip_page_list_nav(text)
+                data = text.encode("utf-8")
+            elif name.endswith(".opf"):
+                text = data.decode("utf-8")
+                text = _strip_legacy_toc_guide(text)
+                text = _strip_nav_from_spine(text)
+                data = text.encode("utf-8")
+            payloads[name] = data
+
+    # EPUB requires mimetype to be the first ZIP member and stored uncompressed.
+    by_name = {i.filename: i for i in infos}
+    ordered = []
+    if "mimetype" in by_name:
+        ordered.append(by_name["mimetype"])
+    ordered.extend(i for i in infos if i.filename != "mimetype")
+
+    with zipfile.ZipFile(tmp, "w") as zout:
+        for info in ordered:
+            if info.is_dir():
+                zout.writestr(info, b"")
+                continue
+            if info.filename == "mimetype":
+                info.compress_type = zipfile.ZIP_STORED
+            zout.writestr(info, payloads[info.filename])
+
+    os.replace(tmp, epub)
+
+
 def structural_check(
     epub: Path,
     *,
     title: str,
     authors: list[str],
     expected_toc_omissions: list[str],
+    require_cover: bool,
 ) -> None:
     """Fail on broken chapter-note links / navigation; warn on suspicious TOC labels."""
     with zipfile.ZipFile(epub) as zf:
@@ -189,6 +310,31 @@ def structural_check(
                 if author not in found_authors:
                     raise RuntimeError(f"EPUB metadata is missing author: {author}")
 
+            opf_text = zf.read(opf_name).decode("utf-8")
+            if HIDE_NAV_DOCUMENT_FROM_SPINE and re.search(
+                r'<itemref\b(?=[^>]*\bidref=["\']nav["\'])', opf_text, flags=re.IGNORECASE
+            ):
+                raise RuntimeError("Navigation document is still present in the reading spine")
+            if REMOVE_LEGACY_TOC_GUIDE and re.search(
+                r'<guide\b', opf_text, flags=re.IGNORECASE
+            ):
+                raise RuntimeError("Legacy OPF <guide> survived post-processing")
+
+            if require_cover:
+                cover_items = [
+                    el for el in opf.iter()
+                    if el.tag.endswith("}item")
+                    and "cover-image" in el.attrib.get("properties", "").split()
+                ]
+                if len(cover_items) != 1:
+                    raise RuntimeError(
+                        f"Expected exactly one EPUB cover-image manifest item, found {len(cover_items)}"
+                    )
+                cover_href = cover_items[0].attrib.get("href", "")
+                cover_member, _ = _resolve_member(opf_name, cover_href)
+                if not cover_member or cover_member not in name_set:
+                    raise RuntimeError(f"EPUB cover image target is missing: {cover_href!r}")
+
         # --- Native footnotes: same XHTML, visible number, target and backlink ---
         total_refs = 0
         total_notes = 0
@@ -217,10 +363,10 @@ def structural_check(
                 if target not in ids:
                     raise RuntimeError(f"Broken footnote target in {name}: #{target}")
                 visible = _all_text(a)
-                m = re.fullmatch(r"\[?(\d+)\]?", visible)
+                m = re.fullmatch(r"\[(\d+)\]", visible)
                 if not m:
                     raise RuntimeError(
-                        f"Footnote reference in {name} has no clear visible numeric marker: {visible!r}"
+                        f"Footnote reference in {name} must be a literal bracketed marker like [1]: {visible!r}"
                     )
                 ref_numbers.append(int(m.group(1)))
 
@@ -256,9 +402,10 @@ def structural_check(
                     raise RuntimeError(
                         f"Broken footnote backlink in {name} note {note.attrib.get('id')}: {href!r}"
                     )
-                if not _all_text(backlink):
+                back_text = _all_text(backlink)
+                if not re.fullmatch(r"\[\d+\]", back_text):
                     raise RuntimeError(
-                        f"Footnote {note.attrib.get('id')} in {name} has no visible note number/backlink text"
+                        f"Footnote {note.attrib.get('id')} in {name} backlink must be bracketed like [1]: {back_text!r}"
                     )
 
         # --- Navigation TOC: all targets reachable, no source Notes chapter ---
@@ -267,6 +414,15 @@ def structural_check(
             raise RuntimeError("EPUB navigation document nav.xhtml not found")
         nav_root = roots[nav_name]
         nav_anchors = _anchor_elements(nav_root)
+        if require_cover:
+            toc_navs = [
+                el for el in nav_root.iter()
+                if el.tag.endswith("}nav") and "toc" in _epub_type(el).split()
+            ]
+            for toc_nav in toc_navs:
+                for anchor in _anchor_elements(toc_nav):
+                    if "cover.xhtml" in anchor.attrib.get("href", "").lower():
+                        raise RuntimeError("EPUB cover must not appear as a normal TOC entry")
         toc_labels: list[str] = []
         for a in nav_anchors:
             href = a.attrib.get("href", "")
@@ -289,6 +445,28 @@ def structural_check(
             if omitted and omitted in toc_labels:
                 raise RuntimeError(f"TOC omission failed; navigation still contains heading: {omitted}")
 
+        polluted_labels = [
+            x for x in toc_labels
+            if re.fullmatch(r"\[?\d+\]?[.。]?", x.strip())
+            or re.match(r"^(脚注|注释)\s*\[?\d+\]?", x.strip())
+        ]
+        if polluted_labels:
+            raise RuntimeError(
+                "Navigation is polluted by page/footnote-style numeric entries: "
+                + "; ".join(polluted_labels[:12])
+            )
+        for a in nav_anchors:
+            href = a.attrib.get("href", "")
+            if re.search(r"#(?:fn|fnref)\d+", href):
+                raise RuntimeError(f"Navigation must not contain footnote anchors: {href!r}")
+
+        page_list_navs = [
+            el for el in nav_root.iter()
+            if el.tag.endswith("}nav") and "page-list" in _epub_type(el).split()
+        ]
+        if REMOVE_PAGE_LIST_NAV and page_list_navs:
+            raise RuntimeError("EPUB navigation still contains an epub:type='page-list' block")
+
         suspicious = [x for x in toc_labels if re.match(r"^(表|图)\s*\d", x)]
         if suspicious:
             print("[warning] TOC contains possible table/figure headings: " + "; ".join(suspicious[:8]))
@@ -306,8 +484,13 @@ def structural_check(
                     raise RuntimeError(f"Broken NCX target: {src!r} -> missing {target_file}")
                 if frag and frag not in ids_by_file.get(target_file, set()):
                     raise RuntimeError(f"Broken NCX fragment: {src!r}")
+                if re.search(r"#(?:fn|fnref)\d+", src):
+                    raise RuntimeError(f"NCX must not contain footnote anchors: {src!r}")
 
-        print(f"QA: {total_refs} native note refs, {total_notes} native note targets; navigation links valid.")
+        print(
+            f"QA: {total_refs} native note refs, {total_notes} native note targets; "
+            f"{len(toc_labels)} navigation labels; no nav-in-spine/legacy-guide/page-list pollution."
+        )
 
 
 def build(args: argparse.Namespace) -> Path:
@@ -339,7 +522,13 @@ def build(args: argparse.Namespace) -> Path:
         shutil.rmtree(build_dir)
     build_dir.mkdir(parents=True)
     metadata = build_dir / "metadata.yaml"
-    write_metadata(metadata, title, authors, toc_omit)
+    write_metadata(
+        metadata,
+        title,
+        authors,
+        toc_omit,
+        toc_start_at_first_numbered_unit=TOC_START_AT_FIRST_NUMBERED_UNIT,
+    )
 
     resource_paths = [str(project_dir)]
     assets = project_dir / ASSETS_DIR
@@ -351,7 +540,6 @@ def build(args: argparse.Namespace) -> Path:
         str(input_md),
         "--from=markdown+smart",
         "--to=epub3",
-        "--toc",
         f"--toc-depth={TOC_DEPTH}",
         f"--split-level={SPLIT_LEVEL}",
         f"--css={CSS_FILE}",
@@ -363,6 +551,7 @@ def build(args: argparse.Namespace) -> Path:
     ]
 
     cover = args.cover or COVER_IMAGE
+    cover_path: Path | None = None
     if cover:
         cover_path = Path(cover)
         if not cover_path.is_absolute():
@@ -370,6 +559,11 @@ def build(args: argparse.Namespace) -> Path:
         if not cover_path.exists():
             raise FileNotFoundError(f"Cover image not found: {cover_path}")
         cmd.insert(-2, f"--epub-cover-image={cover_path.resolve()}")
+    elif REQUIRE_COVER:
+        raise FileNotFoundError(
+            "COVER_SKILL output is required but no EPUB cover was configured. "
+            "Expected cover_epub.jpg or pass --cover explicitly."
+        )
 
     print("=== EPUB build ===")
     print(f"Input : {input_md}")
@@ -381,11 +575,14 @@ def build(args: argparse.Namespace) -> Path:
     if not output.exists() or output.stat().st_size == 0:
         raise RuntimeError("Pandoc returned successfully but no EPUB was created.")
 
+    postprocess_epub(output)
+
     structural_check(
         output,
         title=title,
         authors=authors,
         expected_toc_omissions=toc_omit,
+        require_cover=cover_path is not None,
     )
     print(f"Done: {output} ({output.stat().st_size / 1024 / 1024:.2f} MB)")
     return output

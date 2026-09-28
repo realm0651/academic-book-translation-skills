@@ -13,6 +13,11 @@ $if(toc-title)$\renewcommand{\contentsname}{$toc-title$}$else$\renewcommand{\con
 \begin{document}
 \frontmatter
 
+$if(cover-image)$
+\begin{titlepage}
+  \bookcoverimage{$cover-image$}
+\end{titlepage}
+$else$
 $if(title)$
 \begin{titlepage}
   \thispagestyle{bookempty}
@@ -27,6 +32,7 @@ $if(title)$
     $if(edition-note)${\small $edition-note$\par}$endif$
   \end{center}
 \end{titlepage}
+$endif$
 $endif$
 
 \pagestyle{fancy}

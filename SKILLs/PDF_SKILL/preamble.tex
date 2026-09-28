@@ -51,6 +51,7 @@
 \usepackage{microtype}
 \usepackage{xurl}
 \usepackage{caption}
+\usepackage{eso-pic}
 \usepackage{newunicodechar}
 \usepackage[unicode=true,hidelinks,linktoc=all,pdfpagelabels,bookmarksopen=true,bookmarksnumbered=false]{hyperref}
 \usepackage{bookmark}
@@ -102,6 +103,19 @@
   \else
     \usebox{\bookmathbox}%
   \fi
+}
+
+% -----------------------------------------------------------------------------
+% Full-page cover
+% -----------------------------------------------------------------------------
+% COVER_SKILL emits cover_pdf.png at the exact B5 aspect ratio. Overlay it on the
+% first title-page sheet so the normal text margins do not crop or shrink it.
+\newcommand{\bookcoverimage}[1]{%
+  \thispagestyle{bookempty}%
+  \AddToShipoutPictureBG*{%
+    \AtPageLowerLeft{\includegraphics[width=\paperwidth,height=\paperheight]{#1}}%
+  }%
+  \null%
 }
 
 % -----------------------------------------------------------------------------

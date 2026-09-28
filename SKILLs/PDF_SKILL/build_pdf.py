@@ -59,6 +59,8 @@ SUPPRESS_FIRST_H1 = True  # assembled masters normally begin with the book-title
 TOC_EXCLUDE_H1: tuple[str, ...] = ()
 OPENRIGHT = False  # False is the digital-reading default; True is print-style odd-page opening
 ASSETS_DIR = "assets"
+COVER_IMAGE = "cover_pdf.png"  # standard output from COVER_SKILL
+REQUIRE_COVER = True
 MAX_OVERFULL_PT = 8.0
 # ======================================================================
 
@@ -136,6 +138,7 @@ class PdfStats:
     mainmatter_page: int
     mainmatter_label: str
     mainmatter_printed: bool
+    cover_present: bool
     font_rows: list[tuple[str, str, bool]]
     image_occurrences: int
     image_xrefs: int
@@ -549,6 +552,7 @@ def write_metadata(
     toc_title: str,
     notes_title: str,
     openright: bool,
+    cover_image: str,
     manifest: StructuralManifest,
 ) -> None:
     data = {
@@ -560,6 +564,7 @@ def write_metadata(
         "toc-title": toc_title,
         "notes-title": notes_title,
         "openright": openright,
+        "cover-image": cover_image,
         "preamble-path": PREAMBLE_FILE.resolve().as_posix(),
         "book-h1-types": manifest.h1_types,
         "book-mainmatter-index": manifest.mainmatter_index,
@@ -810,11 +815,33 @@ def qa_pdf(
     expected_internal_links: int,
     log_stats: LogStats,
     max_overfull_pt: float,
+    cover_expected: bool,
 ) -> PdfStats:
     warnings: list[str] = list(manifest.warnings)
     with fitz.open(pdf_path) as doc:
         if doc.page_count <= 0:
             raise BuildError("PDF has no pages")
+
+        cover_present = False
+        if cover_expected:
+            first_page = doc[0]
+            page_area = float(first_page.rect.width * first_page.rect.height)
+            cover_rects = []
+            for image_row in first_page.get_images(full=True):
+                xref = int(image_row[0])
+                try:
+                    cover_rects.extend(first_page.get_image_rects(xref))
+                except Exception:
+                    continue
+            if not cover_rects:
+                raise BuildError("Configured PDF cover is not present on the first physical page")
+            coverage = max(float(rect.width * rect.height) for rect in cover_rects) / page_area
+            if coverage < 0.90:
+                raise BuildError(
+                    f"PDF cover image does not fill enough of the first page: coverage={coverage:.3f}"
+                )
+            cover_present = True
+
         outline = doc.get_toc(simple=True)
         actual_pairs = [(int(row[0]), normalize_outline_title_for_qa(str(row[1]))) for row in outline]
         if actual_pairs != manifest.expected_outline:
@@ -941,6 +968,7 @@ def qa_pdf(
             mainmatter_page=main_page,
             mainmatter_label=main_label,
             mainmatter_printed=printed_one,
+            cover_present=cover_present,
             font_rows=fonts,
             image_occurrences=image_occurrences,
             image_xrefs=len(image_xrefs),
@@ -982,6 +1010,7 @@ def write_qa_report(
         f"Main-matter physical page: {pdf_stats.mainmatter_page}",
         f"Main-matter logical label: {pdf_stats.mainmatter_label}",
         f"Main-matter printed footer verified as 1: {pdf_stats.mainmatter_printed}",
+        f"Cover image verified on first physical page: {pdf_stats.cover_present}",
         "",
         "Fonts (all must be embedded):",
     ])
@@ -1061,6 +1090,22 @@ def build(args: argparse.Namespace) -> tuple[Path, Path, PdfStats]:
     mainmatter_start = args.mainmatter_start or MAINMATTER_START
     openright = bool(args.openright if args.openright is not None else OPENRIGHT)
 
+    cover_value = args.cover or COVER_IMAGE
+    cover_path: Path | None = None
+    if cover_value:
+        cover_path = Path(cover_value).expanduser()
+        if not cover_path.is_absolute():
+            cover_path = (input_path.parent / cover_path).resolve()
+        else:
+            cover_path = cover_path.resolve()
+        if not cover_path.is_file():
+            raise BuildError(f"Cover image not found: {cover_path}")
+    elif REQUIRE_COVER:
+        raise BuildError(
+            "COVER_SKILL output is required but no PDF cover was configured. "
+            "Expected cover_pdf.png or pass --cover explicitly."
+        )
+
     source_hash_before = sha256_file(input_path)
     source_text = input_path.read_text(encoding="utf-8-sig")
     source_notes = analyze_source_notes(source_text, NOTES_TITLE)
@@ -1104,6 +1149,7 @@ def build(args: argparse.Namespace) -> tuple[Path, Path, PdfStats]:
             toc_title=TOC_TITLE,
             notes_title=NOTES_TITLE,
             openright=openright,
+            cover_image=cover_path.as_posix() if cover_path else "",
             manifest=manifest,
         )
 
@@ -1164,10 +1210,11 @@ def build(args: argparse.Namespace) -> tuple[Path, Path, PdfStats]:
         pdf_stats = qa_pdf(
             built_pdf,
             manifest=manifest,
-            expected_images=len(image_targets),
+            expected_images=len(image_targets) + (1 if cover_path else 0),
             expected_internal_links=expected_internal_links,
             log_stats=log_stats,
             max_overfull_pt=MAX_OVERFULL_PT,
+            cover_expected=cover_path is not None,
         )
         if source_hash_before != sha256_file(input_path):
             raise BuildError("Authoritative input Markdown changed during the build")
@@ -1200,6 +1247,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--title", default="")
     parser.add_argument("--short-title", default="")
     parser.add_argument("--author", action="append", default=[], help="author; repeat as needed")
+    parser.add_argument("--cover", default="", help="PDF cover image; defaults to cover_pdf.png")
     parser.add_argument("--mainmatter-start", default="", help="exact first body H1 if auto-detection is unsuitable")
     parser.add_argument("--openright", action=argparse.BooleanOptionalAction, default=None, help="force Part/Chapter to odd pages")
     parser.add_argument("--keep-temp", action="store_true", help="retain temporary build files for diagnosis")

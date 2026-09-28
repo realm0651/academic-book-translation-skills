@@ -28,11 +28,13 @@ def main() -> int:
     ap.add_argument('--pdf', required=True)
     ap.add_argument('--glossary', default='glossary.md')
     ap.add_argument('--metadata', default='zlibrary_metadata.md')
+    ap.add_argument('--cover', default='')
     ap.add_argument('--assets', default='')
     ap.add_argument('--output', default='')
     a=ap.parse_args()
     stem=safe_stem(a.book_stem)
     master, epub, pdf, glossary, metadata = map(require, [a.master,a.epub,a.pdf,a.glossary,a.metadata])
+    cover = require(a.cover) if a.cover else None
     out=Path(a.output) if a.output else Path(f'{stem}_final.zip')
     out=out.expanduser().resolve()
     out.parent.mkdir(parents=True,exist_ok=True)
@@ -42,6 +44,8 @@ def main() -> int:
         z.write(pdf, safe_stem(pdf.stem)+pdf.suffix.lower())
         z.write(glossary, 'glossary.md')
         z.write(metadata, 'zlibrary_metadata.md')
+        if cover:
+            z.write(cover, 'cover.png')
         if a.assets:
             assets=Path(a.assets).expanduser().resolve()
             if assets.exists():

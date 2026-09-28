@@ -1,7 +1,7 @@
-本项目用于英文社会科学、历史学、政治学、哲学及相关学术著作的完整中文翻译，并生成最终Markdown、EPUB、PDF。项目有TRANSLATION_SKILL、EPUB_SKILL、PDF_SKILL三套SOP；处理时优先读取当前阶段对应SKILL.md并复用已有脚本/模板，除非我明确要求，不另造流程、不无必要改Skill。
+本项目用于英文社会科学、历史学、政治学、哲学及相关学术著作的完整中文翻译，并生成最终Markdown、EPUB、PDF。项目有TRANSLATION_SKILL、COVER_SKILL、EPUB_SKILL、PDF_SKILL四套SOP；处理时优先读取当前阶段对应SKILL.md并复用已有脚本/模板，除非我明确要求，不另造流程、不无必要改Skill。
 
 # 一、总体工作流
-原始PDF→判断PDF类型→TRANSLATION_SKILL→全书结构/Notes判断→book_plan.md→glossary.md→（PDF-I先逐Part OCR/校正原文）→按book_plan逐Part翻译→滚动更新glossary和book_plan→全部Part/附录/Notes完成→最终Markdown整合→EPUB_SKILL+PDF_SKILL→EPUB/PDF QA→同轮生成zlibrary_metadata.md并打包final.zip。Translation Skill生成的最终master.md是EPUB/PDF唯一正文母稿，不维护两套正文。
+原始PDF→判断PDF类型→TRANSLATION_SKILL→全书结构/Notes判断→book_plan.md→glossary.md→（PDF-I先逐Part OCR/校正原文）→按book_plan逐Part翻译→滚动更新glossary和book_plan→全部Part/附录/Notes完成→最终Markdown整合→COVER_SKILL→EPUB_SKILL+PDF_SKILL→EPUB/PDF QA→同轮生成zlibrary_metadata.md并打包final.zip。Translation Skill生成的最终master.md是EPUB/PDF唯一正文母稿，不维护两套正文。
 `book_plan.md`是唯一workflow state，`glossary.md`是唯一terminology state，原始PDF始终是原文权威来源。BOOK_STEM取原PDF名去掉`.pdf`后规范化：所有空格/空白和字面`%20`统一改为`_`，不安全文件字符也改为`_`并合并重复下划线；之后保持不变。所有工作流输出文件名不得含空格或`%20`，如`Acts of Resistance.pdf`→`Acts_of_Resistance_part1_中译.md`、`Acts_of_Resistance_master.md`。`book_plan.md`、`glossary.md`、`zlibrary_metadata.md`、`assets/`固定名。最终EPUB/PDF不用英文名+“中译”，直接按最终中文书名生成安全文件名，如《抵抗行动：反抗市场暴政》→`抵抗行动_反抗市场暴政.epub/pdf`。默认不为流程管理物理拆分Part PDF。
 
 # 二、新书初始化
@@ -30,10 +30,10 @@ PDF-O只允许校正识别错误，如断词/合词、字符混淆、乱码、�
 
 # 七、全部Part完成与整合
 全部正文Part、附录和需翻译Notes完成后，更新book_plan为Translation stage: complete、Next action: whole-book Markdown assembly。不要假定能可靠读取所有历史MD；告诉我下一阶段是全书Markdown整合，并一次性要求：所有最终Part MD、附录MD、Notes MD（如适用）、assets或assets ZIP（如有）。除非必须回查原文，不要求原始PDF。
-整合时读取TRANSLATION_SKILL/SKILL.md，按最小变换原则：不重新翻译、不润色、不改正文内容、不重编号正确脚注、不改数字/表格/注释正文/稳定译名；按原书顺序合并Part，移动各Part Notes，最终生成`# 注释`并按`## 前言/第一章/.../附录`等分组，输出`<BOOK_STEM>_master.md`。整合前后检查脚注和结构；发现真实错误要指出，不凭猜测自动修复。完成后记录“Markdown整合完成；输出master.md；下一步：生成EPUB和PDF”。
+整合时读取TRANSLATION_SKILL/SKILL.md，按最小变换原则：不重新翻译、不润色、不改正文内容、不重编号正确脚注、不改数字/表格/注释正文/稳定译名；按原书顺序合并Part，移动各Part Notes，最终生成`# 注释`并按`## 前言/第一章/.../附录`等分组，输出`<BOOK_STEM>_master.md`。整合前后检查脚注和结构；发现真实错误要指出，不凭猜测自动修复。完成后记录“Markdown整合完成；输出master.md；下一步：COVER_SKILL制作封面”。
 
 # 八、EPUB/PDF与Z-Library
-master完成后我说“继续”或要求生成EPUB/PDF时，作为一个完整Publishing阶段一次做完：依次读取EPUB_SKILL和PDF_SKILL，用同一master，生成EPUB+PDF并QA；随即同轮生成`zlibrary_metadata.md`并创建`<BOOK_STEM>_final.zip`，无需再等一次“继续”。优先复用现有CSS/Lua/TeX模板，只改必要参数，不改正文MD迁就排版。ZIP只含master、中文名EPUB/PDF、glossary、zlibrary_metadata.md、assets（如有），不放book_plan、Part文件、原文校正版、QA渲染或构建临时文件。ZIP内部顶层文件名也不得出现空格或`%20`，打包时使用明确arcname，不能把sandbox/URL编码名称直接写进ZIP。
+master完成后我说“继续”时，先单独执行COVER_SKILL：默认参考原书封面风格生成新的无字底图，再确定性排入中文主标题、英文主标题和原作者名（已有稳定中文名可并列），默认不放副标题、译者、出版社或宣传语；输出`cover.png`、`cover_epub.jpg`、`cover_pdf.png`并QA，更新book_plan为Next action=EPUB/PDF publishing，本轮结束。封面完成后我再说“继续”或要求生成EPUB/PDF时，作为一个完整Publishing阶段一次做完：依次读取EPUB_SKILL和PDF_SKILL，用同一master及对应封面生成EPUB+PDF并QA；随即同轮生成`zlibrary_metadata.md`并创建`<BOOK_STEM>_final.zip`，无需再等一次“继续”。优先复用现有CSS/Lua/TeX模板，只改必要参数，不改正文MD迁就排版。ZIP只含master、中文名EPUB/PDF、`cover.png`、glossary、zlibrary_metadata.md、assets（如有），不放book_plan、Part文件、原文校正版、`cover_base.png`、QA渲染或构建临时文件。ZIP内部顶层文件名也不得出现空格或`%20`，打包时使用明确arcname，不能把sandbox/URL编码名称直接写进ZIP。
 PDF目录是阅读导航：默认字号应接近正文（当前B5模板约10.5pt），不能为了压缩页数过小；目录中章节标题和页码都必须可点击并跳到正确章节。PDF QA除书签、页码、脚注链接外，还必须逐项解析目录链接目标，确认全部目录条目可达；代表性页面视觉检查应包含目录页。
 `zlibrary_metadata.md`格式仅含：中文书名、English Title、作者、ISBN、出版年份、简介。中文书名用最终完整书名；英文保留完整title/subtitle；作者优先原文姓名，有稳定中译可并列；ISBN优先当前PDF版本ISBN-13，无法确认则“待核对”；年份取当前PDF对应版本；简介简短客观，概括主题、核心问题、分析路径，不宣传、不虚构；优先依据扉页/版权页，缺失或冲突且可联网时用可靠书目源核对；不额外生成标签/分类/出版社/语言；此步骤不修改master、EPUB、PDF、glossary、assets。
 
